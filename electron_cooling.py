@@ -1,6 +1,7 @@
 #%%
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.integrate import quad
 
 #%%
 #Physical constants
@@ -49,10 +50,14 @@ psi_i = (1 / (np.pi * sigma_k**2)**0.25) * np.exp(-(k_f - k0)**2 / (2 * sigma_k*
 psi_i /= np.linalg.norm(psi_i)  # normalize
 
 prob_ki = psi_i*np.conj(psi_i)
-
-half_max_index_first = np.where(prob_ki >= np.max(prob_ki) / 2)[0][0]
-half_max_index_second = np.where(prob_ki >= np.max(prob_ki) / 2)[0][-1]
-initial_width = k_f[half_max_index_second] - k_f[half_max_index_first]
+def width_calculation(prob,x):
+    # Find the index where the probability density reaches half its maximum
+    half_max_index_first = np.where(prob >= np.max(prob) / 2)[0][0]
+    half_max_index_second = np.where(prob >= np.max(prob) / 2)[0][-1]
+    return x[half_max_index_second] - x[half_max_index_first]
+# half_max_index_first = np.where(prob_ki >= np.max(prob_ki) / 2)[0][0]
+# half_max_index_second = np.where(prob_ki >= np.max(prob_ki) / 2)[0][-1]
+# initial_width = k_f[half_max_index_second] - k_f[half_max_index_first]
 
 print(initial_width/k0) # The width of the distribution in units of k0
 
@@ -72,7 +77,7 @@ def E(k):
     return (hbar**2 * k**2) / (2 * m)  # parabolic
 
 def omega(q):
-    return omega_0 + v_g * (q -q_0)  + recoil * (q - q_0)**2  # dispersion relation for photons
+    return omega_0 + v_g * (q -q_0)  + (recoil) * (q - q_0)**2  # dispersion relation for photons
 
 # Build Phi(k_f, q)
 Phi = np.zeros((N_k, N_q), dtype=complex)
@@ -146,8 +151,8 @@ k_f = np.linspace(k_min, k_max, N_k)
 dk = k_f[1] - k_f[0]
 
 N_q = N_k
-q = np.linspace(q_min, q_max, N_q)
-dq = q[1] - q[0]
+q_vec = np.linspace(q_min, q_max, N_q)
+dq = q_vec[1] - q_vec[0]
     
 # Initial electron wavefunction: Gaussian centered at k0
 sigma_k = 0.1*k0
@@ -166,7 +171,7 @@ for L_int in L_int_vec:
     # Build Phi(k_f, q)
     Phi = np.zeros((N_k, N_q), dtype=complex)
     for i, kf in enumerate(k_f):
-        for j, qv in enumerate(q):
+        for j, qv in enumerate(q_vec):
             ki = kf + qv  # conservation of momentum
             if ki < k_min:
                 continue
@@ -241,5 +246,70 @@ Phi = np.sqrt(1 / (2 * hbar * np.abs(omega(q)))) * T * np.sinc((E(ki) - E(k_f[:,
 rho_f = np.dot(Phi, Phi.T.conj()) * dq
 # Probability density = diagonal elements
 prob_kf = np.real(np.diag(rho_f)).copy()
+
+# %%
+alternativerecoil = -(1/k0*v0**2)
+def k(E):
+    return np.sqrt(2*m*E/hbar**2)
+    
+def q(omega):
+    return q_0 + (1/v_g)*(omega - omega_0) + (1/2)*alternativerecoil*(omega - omega_0)**2  # Photon momentum
+   
+   #%% 
+def integrand(omega_,Ef, L_int):
+    argument = (k(Ef + hbar * omega_) - k(Ef) - q(omega_)) * (L_int / 2)
+    return (np.sinc(argument / np.pi))**2 * abs(psi_i(Ef + hbar * omega_))**2
+
+def psi_i(E):
+    deltaE = 0.1*E_0  # Width of the Gaussian, adjust as needed
+    # Example function; replace with actual
+    return (1/(np.sqrt(np.sqrt(2*np.pi)*deltaE)))*np.exp(-(E-E_0)**2/(4*deltaE**2))
+#%%
+E_0 = k0**2 / (2 * m)  # Central energy, adjust as need
+N_E = 1000
+Ef_vector = np.linspace(0.1*E_0,2*E_0,N_E) # Example energy range
+N_omega = 1000
+omegaVec = np.linspace(0, 2 * omega_0, N_omega)  # Example frequency range
+rhoApproximated = []
+L_int = 0.005  # Interaction length in meters, adjust as needed
+
+# build your ω‐grid
+
+d_omega = omegaVec[1] - omegaVec[0]
+
+rho_approximated = []
+for Ef in Ef_vector:
+    # evaluate your integrand on the grid; 
+    # assume integrand(ω, Ef) returns the scalar integrand value
+    y = [ integrand(omega_, Ef, L_int)*d_omega for omega_ in omegaVec]  
+
+    # trapezoidal integration
+    integral = np.trapz(y, x=omegaVec)
+    
+    rho = 1 / (2 * omega_0 * eps0) \
+          * integral
+    rho_approximated.append(rho)
+
+psi_i_vals = [abs(psi_i(Ef))**2 for Ef in Ef_vector]
+
+initial_width = width_calculation(psi_i_vals, Ef_vector)
+final_width = width_calculation(rho_approximated, Ef_vector)
+# # Plot psi_i(E) as a function of Ef_vector
+
+plt.figure()
+plt.plot(Ef_vector, psi_i_vals, label=r'$|\psi_i(E)|^2$')
+plt.xlabel('Energy')
+plt.ylabel(r'$|\psi_i(E)|^2$')
+plt.title('Initial Electron Energy Distribution')
+plt.legend()
+plt.show()
+plt.plot(Ef_vector, rho_approximated)
+plt.xlabel('Final Energy (Ef)')
+plt.ylabel(r'$\rho_{\mathrm{approx}}(E_f)$')
+plt.show()
+print("Initial width:", initial_width)
+print("Final width:", final_width)
+print(max(psi_i_vals))
+print(max(rho_approximated))
 
 # %%
