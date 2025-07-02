@@ -24,7 +24,7 @@ v_g     = v0                 # photon group velocity (m/s)
 deltaE = 0.05 * hbar * omega0                    # energy spread (J)
 
 k0     = np.sqrt(2 * m * E_0) / hbar             # central momentum (1/m)
-k0_m_hw     = np.sqrt(2 * m * (E0-hbar *omega0)) / hbar
+k0_m_hw     = np.sqrt(2 * m * (E_0-hbar *omega0)) / hbar
 q0 = k0 - k0_m_hw
 
 # From Phase‐matching expansion (approximation) to fit LINEAR dispersion relations:
