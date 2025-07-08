@@ -2,6 +2,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 #%%
 def compute_FWHM(x, y):
     half = np.max(y) / 2.0
