@@ -120,3 +120,27 @@ plt.plot(L_int_vec*1000, widths_L,'.')
 plt.plot(L_int_vec*1000, [initial_width]*L_num, label=f'Initial width = {initial_width:.4f} eV')
 plt.xlabel('Interaction Length (mm)')
 plt.ylabel('Final Width (eV)')
+
+
+#%% 2D plot of widths vs v_g and L_int
+widths_2D = np.zeros((L_num, v_g_num))
+for i, L_int_test in enumerate(L_int_vec):
+    for j, v_g_test in enumerate(v_g_vec):
+        rho_f = np.sum((1/np.sqrt(2*np.pi*deltaE**2)) * np.exp(-(δE_f_grid + hbar*δω_grid)**2 / (2 * deltaE**2)) * 
+                   (np.sinc((k(E0 + δE_f_grid + hbar*δω_grid) - k(E0 + δE_f_grid - hbar*omega0) - (q0 + (δω_grid/ v_g_test) + 0.5 * recoil * δω_grid**2)) * L_int_test / 2 / np.pi))**2, axis=1) * dω
+        rho_f /= np.sum(rho_f * dE)  # Normalize the final state probability density
+        widths_2D[i, j] = compute_FWHM(E_f, rho_f) / e  # Store final width in eV
+        
+
+
+# create the 2D plot
+plt.figure(figsize=(8, 6))
+plt.imshow(widths_2D, extent=[v_g_vec.min()/c, v_g_vec.max()/c, L_int_vec.min()*1e6, L_int_vec.max()*1e6],
+           origin='lower', aspect='auto', cmap='viridis')
+plt.colorbar(label='Final Width (eV)')
+plt.xlabel('Photon Group Velocity (c)')
+plt.ylabel('Interaction Length (μm)')
+plt.title('Final Width vs Photon Group Velocity and Interaction Length')
+plt.show()
+
+# %%
