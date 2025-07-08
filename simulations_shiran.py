@@ -90,9 +90,11 @@ plt.show()
 v_g_num = 11  # Number of group velocities to test
 v_g_vec = np.linspace(0.099, 0.101, v_g_num) * c 
 widths_vg = []
+ 
 for v_g_test in v_g_vec:
     rho_f = np.sum((1/np.sqrt(2*np.pi*deltaE**2)) * np.exp(-(δE_f_grid + hbar*δω_grid)**2 / (2 * deltaE**2)) * 
                    (np.sinc((k(E0 + δE_f_grid + hbar*δω_grid) - k(E0 + δE_f_grid - hbar*omega0) - (q0 + (δω_grid/ v_g_test) + 0.5 * recoil * δω_grid**2)) * L_int / 2 / np.pi))**2, axis=1) * dω
+    
     rho_f /= np.sum(rho_f * dE)  # Normalize the final state probability density
     widths_vg.append(compute_FWHM(E_f, rho_f) / e)  # Store final width in eV
 
@@ -107,21 +109,27 @@ plt.legend()
 plt.show()
 
 #%% Simple Width vs. Interaction Length Scan
-L_num = 11  # Number of interaction lengths to test
-L_int_vec = np.linspace(0.00001, 0.001, L_num)  # m
+L_num = 21  # Number of interaction lengths to test
+L_int_vec = np.linspace(0.00001, 0.1, L_num)  # m
 widths_L = []
+probability = []
 for L_int_test in L_int_vec:
-    rho_f = np.sum((1/np.sqrt(2*np.pi*deltaE**2))*np.exp(-(δE_f_grid + hbar*δω_grid)**2/2/deltaE**2)*(np.sinc(Delta_PM*(L_int_test/2)/np.pi))**2,axis = 1)*dω
-    rho_f = rho_f/ np.sum(rho_f*dE)  # Normalize the final state probability density
-    widths_L.append(compute_FWHM(E_f, rho_f)/e)  # Store final width in eV
+    rho_f = np.sum((e**2 * hbar * L_int_test**2 / (2*(δω_grid+omega0)*m**2))*(1/np.sqrt(2*np.pi*deltaE**2))*np.exp(-(δE_f_grid + hbar*δω_grid)**2/2/deltaE**2)*(np.sinc(Delta_PM*(L_int_test/2)/np.pi))**2,axis = 1)*dω
+    norm = np.sum(rho_f*dE)  # Normalize the final state probability density
+    rho_f = rho_f / norm  # Normalize the final state probability density
+    probability.append(norm)  # Store the total probability
+    widths_L.append(compute_FWHM(E_f, rho_f)/(initial_width*e))  # Store final width in eV
 
 plt.figure()
-plt.plot(L_int_vec*1000, widths_L,'.')
-plt.plot(L_int_vec*1000, [initial_width]*L_num, label=f'Initial width = {initial_width:.4f} eV')
+plt.plot(L_int_vec*1000, probability,'.')
+# plt.plot(L_int_vec*1000, widths_L,'.')
+# plt.plot(L_int_vec*1000, [initial_width]*L_num, label=f'Initial width = {initial_width:.4f} eV')
+plt.ylabel('Total Probability')
 plt.xlabel('Interaction Length (mm)')
-plt.ylabel('Final Width (eV)')
-plt.legend()    
+# plt.legend()    
 plt.show()
+
+
 
 #%% 2D plot of widths vs v_g and L_int
 widths_2D = np.zeros((L_num, v_g_num))
