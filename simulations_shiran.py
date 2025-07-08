@@ -87,7 +87,7 @@ plt.legend()
 plt.show()
 
 #%%
-v_g_num = 41  # Number of group velocities to test
+v_g_num = 11  # Number of group velocities to test
 v_g_vec = np.linspace(0.099, 0.101, v_g_num) * c 
 widths_vg = []
 for v_g_test in v_g_vec:
@@ -107,7 +107,7 @@ plt.legend()
 plt.show()
 
 #%% Simple Width vs. Interaction Length Scan
-L_num = 51  # Number of interaction lengths to test
+L_num = 11  # Number of interaction lengths to test
 L_int_vec = np.linspace(0.00001, 0.001, L_num)  # m
 widths_L = []
 for L_int_test in L_int_vec:
@@ -120,7 +120,8 @@ plt.plot(L_int_vec*1000, widths_L,'.')
 plt.plot(L_int_vec*1000, [initial_width]*L_num, label=f'Initial width = {initial_width:.4f} eV')
 plt.xlabel('Interaction Length (mm)')
 plt.ylabel('Final Width (eV)')
-
+plt.legend()    
+plt.show()
 
 #%% 2D plot of widths vs v_g and L_int
 widths_2D = np.zeros((L_num, v_g_num))
@@ -130,7 +131,7 @@ for i, L_int_test in enumerate(L_int_vec):
                    (np.sinc((k(E0 + δE_f_grid + hbar*δω_grid) - k(E0 + δE_f_grid - hbar*omega0) - (q0 + (δω_grid/ v_g_test) + 0.5 * recoil * δω_grid**2)) * L_int_test / 2 / np.pi))**2, axis=1) * dω
         rho_f /= np.sum(rho_f * dE)  # Normalize the final state probability density
         widths_2D[i, j] = compute_FWHM(E_f, rho_f) / e  # Store final width in eV
-        
+        print(i, j, L_int_test, v_g_test/c, widths_2D[i, j])
 
 
 # create the 2D plot
