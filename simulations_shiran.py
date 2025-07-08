@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+
 #%%
 def compute_FWHM(x, y):
     half = np.max(y) / 2.0
@@ -118,4 +119,4 @@ plt.figure()
 plt.plot(L_int_vec*1000, widths_L,'.')
 plt.plot(L_int_vec*1000, [initial_width]*L_num, label=f'Initial width = {initial_width:.4f} eV')
 plt.xlabel('Interaction Length (mm)')
-plt.ylabel('Final Wi
+plt.ylabel('Final Width (eV)')
