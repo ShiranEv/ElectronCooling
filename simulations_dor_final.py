@@ -177,6 +177,10 @@ def recoil_func(omega0,v0,E_func,k_func):
     return  k0*hbar**2 *sigma/E0**2
 def q(δω,q0,vg,recoil):
     return q0 + (δω / vg) + 0.5 * recoil * δω**2
+def vg_OLD(omega0, v0, E_function, k_function):
+    return v0
+def recoil_OLD(omega0, v0, E_function, k_function):
+    return -1/((k(E(v0))*v0**2))
 # Density matrices
 def final_state_probability_density(N,
                                     initial_width,
@@ -347,18 +351,16 @@ def simulation_test(N, v0, Delta_E_initial, Lambda, L_interaction,k , E, Grid_fa
     
     omega0  = 2 * np.pi * c / Lambda               # central angular frequency (rad/s)
     initial_width =  Delta_E_initial / (e*2 * np.sqrt(2 * np.log(2)))  # Convert FWHM to standard deviation
-    q0_OLD = omega0/v0 + 1/(2*k0*(v0)**2)
-    vg_OLD = v0
-    recoil_old = -1/((k0*v0**2))
-    # Run the simulation with the given parameters
+    q0_OLD = omega0/v0 + 1/(2*k(E(v0))*(v0)**2)
+     # Run the simulation with the given parameters
     δE_f_eV, rho_f_e, final_width, rho_i_e, δω, rho_f_p = final_state_probability_density(
                                                                                             N,
                                                                                             initial_width,
                                                                                             L_int,
-                                                                                            q0_OLD,vg_OLD ,
-                                                                                            recoil_old,
+                                                                                            q0_func,v_g_func ,
+                                                                                            recoil_func,
                                                                                             v0, omega0,
-                                                                                            k,E,Grid_factor
+                                                                                            k,E,4
                                                                                              )
     plt.figure()
     plt.plot(δE_f_eV, rho_i_e, label=f"initial σ = {initial_width:.4f} eV")
