@@ -45,8 +45,11 @@ def v_rel(E_eV):
     E = E_eV * e  # Convert eV to Joules
     gamma = np.sqrt(1 + 2 * E / (m * c**2))
     return c * np.sqrt(1 - 1/gamma**2)
+def v_func(E):
+    gamma = np.sqrt(1 + 2 * E / (m * c**2))
+    return c * np.sqrt(1 - 1/gamma**2)
+
 def λ(E_eV):
-    """Calculate the de Broglie wavelength of an electron with energy E."""
     E = E_eV * e  # Convert eV to Joules
     return 2*np.pi * hbar*c / E
 def compute_FWHM(x, y):
@@ -104,6 +107,7 @@ def final_state_probability_density(N,
                                     omega0,
                                     k_function,
                                     E_function,
+                                    v_function,
                                     grid_factor
                                     ):
     # initial_width is sigma in eV
@@ -116,14 +120,14 @@ def final_state_probability_density(N,
     v_g = v_g_function(omega0, v0, E_function, k_function)
     recoil = recoil_function(omega0, v0, E_function, k_function)
 
-    
+
     δω = np.linspace(-grid_factor * sigmaE / hbar, grid_factor * sigmaE / hbar, N)
     dω = δω[1] - δω[0]
-    δE_f = np.linspace(-grid_factor * sigmaE, grid_factor * sigmaE, N)       # J
+    δE_f = np.linspace(-3*grid_factor * sigmaE, 3*grid_factor * sigmaE, N)       # J
     dE   = δE_f[1] - δE_f[0]
-
+    2*grid_factor * sigmaE/N
     δω_grid, δE_f_grid = np.meshgrid(δω, δE_f, indexing='ij')
-
+    print(f"dω = {dω}, dE = {dE}")
     rho_i_2d = (1/np.sqrt(2*np.pi*sigmaE**2)) * np.exp(-(δE_f_grid + hbar*δω_grid)**2/(2*sigmaE**2))
     i0 = np.argmin(np.abs(δω))
     K = np.zeros_like(δω)
@@ -136,10 +140,15 @@ def final_state_probability_density(N,
                - (q0 + (δω_grid / v_g) + 0.5 * recoil * δω_grid**2) )
 
     kernel = np.sinc(Delta_PM * L_int / (2*np.pi)) 
+    factor = e**2 *hbar * v_function(E0 + δE_f_grid + hbar*δω_grid)**2 * L_int**2  / (2*eps0*(δω_grid + omega0))
+    U_factor = 1/5.699002052485579e-45
 
     # Electron marginal over ω (normalized over J)
-    rho_f = np.sum((rho_i_2d * kernel**2), axis=0) * dω
-    rho_f /= np.sum(rho_f * dE)
+    rho_f = 1*np.sum((U_factor*factor * rho_i_2d * kernel**2), axis=0) * dω 
+    print(np.sum(rho_f * dE))
+    p1 = np.sum(rho_f * dE)
+    rho_f = rho_f + (1 - p1)*rho_i_1d
+    
 
     # Photon marginal over δE_f (normalized over rad/s)
     rho_f_p = np.sum((rho_i_2d * kernel**2), axis=1) * dE
@@ -155,7 +164,7 @@ def final_state_probability_density(N,
     rho_i_per_eV /= (np.sum(rho_i_per_eV) * dE_eV)
     rho_f_per_eV /= (np.sum(rho_f_per_eV) * dE_eV)
     final_width_eV = compute_FWHM(δE_f, rho_f)/e
-    
+
     return δE_f_eV, rho_f_per_eV, final_width_eV, rho_i_per_eV, δω, rho_f_p, 
 def final_state_probability_density_lossy(
                                         N,
@@ -486,7 +495,7 @@ def dispersion_plot(omega0, v0,v_g_function,recoil_function, E_function, k_funct
     # phase-matching linearization point (non-zero!)
     E0 = E_function(v0)                                 # central electron energy (J)
     q0_PM  = k_function(E0) - k_function(E0 - hbar*omega0)
-    v_g     = v_g_function(omega0, v0, E_function, k_function)
+    v_g     = 0.2*v_g_function(omega0, v0, E_function, k_function)
     recoil = recoil_function(omega0, v0, E_function, k_function)
 
     k_diff_vec = Δk(0.0, E0, δω_vec, omega0, k_function)     # electron Δk(δω)
@@ -506,7 +515,7 @@ def dispersion_plot(omega0, v0,v_g_function,recoil_function, E_function, k_funct
     plt.grid(True)
     plt.show()
 # simulation function:
-def simulation_test(N, v0, sigma_eV , Lambda, L_interaction, k_function , E_function, Grid_factor):
+def simulation_test(N, v0, sigma_eV , Lambda, L_interaction, k_function , E_function,v_function, Grid_factor):
     omega0  = 2 * np.pi * c / Lambda               # central angular frequency (rad/s)
     # Run the simulation with the given parameters
     δE_f_eV, rho_f_e, final_width_FWHM, rho_i_e, δω, rho_f_p = final_state_probability_density(
@@ -519,10 +528,11 @@ def simulation_test(N, v0, sigma_eV , Lambda, L_interaction, k_function , E_func
         omega0,
         k_function,
         E_function,
+        v_function,
         Grid_factor
     )
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
-    initial_width_FWHM = compute_FWHM(δE_f_eV, rho_i_e)
+    initial_width_FWHM = 2*np.sqrt(2*np.log(2))*sigma_eV
     # Electron probability density
     axes[0].plot(δE_f_eV, rho_i_e, label=f"initial FWHM = {initial_width_FWHM:.4f} eV")
     axes[0].plot(δE_f_eV, rho_f_e, label=f"final FWHM = {final_width_FWHM:.4f} eV")
@@ -595,14 +605,14 @@ def simulation_test(N, v0, sigma_eV , Lambda, L_interaction, k_function , E_func
 # %%============================|TEST SIMULATIONS:|=============================%% # 
 # %% test simulation :
 # setup:
-N = 2**11
+N = 2**12
 v0 = 0.1 * c
 lambda0 = 500e-9; omega0 = 2 * np.pi * c / lambda0  # central angular frequency (rad/s)
 L_int = 0.01  # m
 Delta_E_initial = 0.1 * (hbar * omega0) / e  # eV
 omega0 = 2 * np.pi * c / lambda0
 E0 = E_rel(v0)  # central electron energy (J)
-simulation_test(N, v0, Delta_E_initial/2*np.log(2), lambda0 , L_int, k_rel ,E_rel ,7)
+simulation_test(N, v0, Delta_E_initial/2*np.log(2), lambda0 , L_int, k_rel ,E_rel, v_func ,20)
 
 
 # %%  Width vs. Interaction Length Scan
@@ -1024,13 +1034,15 @@ E0_eV_TEM = 80e3                      # eV    (ELECTRON ENERGY 80 keV)
 v0_TEM = v_rel(E0_eV_TEM)             
 # Photon & Waveguide :
 λ_TEM = λ(0.8)                   # m     (wavelength) should be 0.8 - 1.2 eV
-L_int = 4                     # interaction length (m)
+L_int = 10                   # interaction length (m)
 omega0_TEM  = 2 * np.pi * c / λ_TEM               # central angular frequency (rad/s)
 initial_width_TEM = 2*np.sqrt(2*np.log(2))*deltaE_monochrometer_TEM
 initial_Energy_Width_ratio = initial_width_TEM / E0_eV_TEM
+# Grid_factor = 
+grid_TEM = 5
 # simulation:
 N = 2**12
-simulation_test(N, v0_TEM, deltaE_monochrometer_TEM, λ_TEM, L_int, k_rel, E_rel, 5)
+simulation_test(N, v0_TEM, deltaE_monochrometer_TEM, λ_TEM, L_int, k_rel, E_rel, v_func, grid_TEM)
 # %% vg scan:
 N = 2**11
 v_g_num = 21  # Number of group velocities to test
@@ -1096,7 +1108,8 @@ for v0_test in tqdm(v0_vec, desc="Scanning v0"):
         omega0_TEM,
         k_rel,
         E_rel,
-        10
+        v_func,
+        grid_TEM
     )[2]
     widths_v0.append(width)
 
@@ -1118,9 +1131,9 @@ plt.legend()
 plt.tight_layout()
 plt.show()
 # %% interaction length scan:
-N = 2**11
-L_num = 41  # Number of interaction lengths to test
-L_int_vec = np.linspace(0.002, 1.5, L_num)*L_int  # m
+# N = 2**12
+L_num = 11  # Number of interaction lengths to test
+L_int_vec = np.linspace(0.0, 4, L_num)*L_int  # m
 widths_L = []
 probability = []
 for L_int_test in tqdm(L_int_vec, desc="Scanning_L_int"):
@@ -1134,14 +1147,15 @@ for L_int_test in tqdm(L_int_vec, desc="Scanning_L_int"):
         omega0_TEM,
         k_rel,
         E_rel,
-        10
+        v_func,
+        grid_TEM
     )[2]
     widths_L.append(width)  # Store final width in eV
 
 plt.figure()
-plt.plot(L_int_vec * 1000, np.array(widths_L)/initial_width_TEM, ".-")
+plt.plot(L_int_vec * 1000, np.array(widths_L), ".-")
 plt.plot(
-    L_int_vec * 1000,
+    L_int_vec * 1000,       
     [initial_width_TEM] * len(L_int_vec),
     label=f"Initial width = {initial_width_TEM:.4f} eV",
 )
