@@ -1025,23 +1025,12 @@ v0_TEM = v_rel(E0_eV_TEM)
 # Photon & Waveguide :
 λ_TEM = λ(0.8)                   # m     (wavelength) should be 0.8 - 1.2 eV
 L_int = 4                     # interaction length (m)
-omega0_TEM = 2 * np.pi * c / λ_TEM               # central angular frequency (rad/s)
-initial_width_TEM = deltaE_monochrometer_TEM
+omega0_TEM  = 2 * np.pi * c / λ_TEM               # central angular frequency (rad/s)
+initial_width_TEM = 2*np.sqrt(2*np.log(2))*deltaE_monochrometer_TEM
 initial_Energy_Width_ratio = initial_width_TEM / E0_eV_TEM
 # simulation:
 N = 2**12
 simulation_test(N, v0_TEM, deltaE_monochrometer_TEM, λ_TEM, L_int, k_rel, E_rel, 5)
-# %% Dispersion graph:
-# To allow passing 0.2*v_g_func as an input, you need to wrap it in a lambda so it matches the expected function signature.
-# For example:
-dispersion_plot(
-    omega0_TEM,
-    v0_TEM,
-    lambda *args: 1 * v_g_func(omega0_TEM, v0_TEM, E_rel, k_rel),
-    recoil_func,
-    E_rel,
-    k_rel
-)
 # %% vg scan:
 N = 2**11
 v_g_num = 21  # Number of group velocities to test
@@ -1055,14 +1044,11 @@ v_g_vec = np.unique(
         ]
     )
 )
-# L_int_vec = np.unique(np.concatenate([np.linspace(0.0025, 0.04, L_num), np.linspace(0.0025 , 0.00625, 6)]))
-
-initial_width_eV = deltaE_monochrometer_TEM
 widths_vg = []
 for v_g_test in tqdm(v_g_vec, desc="Scanning v_g"):
     width = final_state_probability_density(
         N, 
-        initial_width_eV,
+        deltaE_monochrometer_TEM,
         L_int,
         lambda *args: v_g_test,
         lambda *args: recoil_func(omega0, v0_TEM, E_rel, k_rel),
@@ -1078,30 +1064,27 @@ plt.figure()
 plt.plot(v_g_vec / c, widths_vg, ".-")
 plt.plot(
     v_g_vec / c,
-    [initial_width_eV] * len(v_g_vec),
-    label=f"Initial width = {initial_width_eV:.4f} eV",
+    [initial_width_TEM] * len(v_g_vec),
+    label=f"Initial width = {initial_width_TEM:.4f} eV",
 )
 plt.axvline(v_g_mean / c, color="red", linestyle="--", label="vg = vg_mean")  # Add vertical line
+plt.grid(True)
 plt.ylabel("Final Width (eV)")
 plt.xlabel("Photon Group Velocity (c)")
 plt.legend()
-plt.grid(True)
 plt.show()
 # %% v0 scan (TEM):
 v0_num = 21
-N = 2**11
-# Build a sorted vector around v0 and ensure center value is present
+N = 2**12
+
 v0_vec = np.unique(
     np.concatenate([
         np.linspace(0.9999, 1.0001, v0_num) * v0_TEM,          # ±1%
         np.linspace(0.99999, 1.00001, v0_num // 2) * v0_TEM,    # ±0.1%
-        [v0_TEM],                                           # exact center
+        [v0_TEM],                                               # exact center
     ])
 )
-
 widths_v0 = []
-
-
 for v0_test in tqdm(v0_vec, desc="Scanning v0"):
     width = final_state_probability_density(
         N,
@@ -1123,18 +1106,20 @@ widths_sorted = np.array(widths_v0)[idx]
 
 plt.figure()
 plt.plot(v0_sorted, widths_sorted, ".-")
-plt.axhline(deltaE_monochrometer_TEM, color="tab:orange",
-            label=f"Initial width = {initial_width_eV:.4f} eV")
-plt.axvline(v0_TEM / c, color="red", linestyle="--", label="vg = vg_mean")  # Add vertical line
+plt.axhline(initial_width_TEM, color="tab:orange",
+            label=f"Initial width = {initial_width_TEM:.4f} eV")
+vg_func_val = v_g_func(omega0_TEM, v0_TEM, E_rel, k_rel) / c
+plt.axvline(vg_func_val, color="blue", linestyle="--", label="v0 = v_g_func(...)")
 plt.xlabel("Electron Velocity v0 (c)")
+plt.ylabel("Final Width (eV)")
 plt.title(f"Final Width vs. Electron Velocity with L_int={L_int*1000} mm, v_g=0.1c")
+plt.grid(True)  # Ensure grid is shown
 plt.legend()
-plt.grid(alpha=0.3)
 plt.tight_layout()
 plt.show()
 # %% interaction length scan:
 N = 2**11
-L_num = 11  # Number of interaction lengths to test
+L_num = 41  # Number of interaction lengths to test
 L_int_vec = np.linspace(0.002, 1.5, L_num)*L_int  # m
 widths_L = []
 probability = []
@@ -1154,11 +1139,11 @@ for L_int_test in tqdm(L_int_vec, desc="Scanning_L_int"):
     widths_L.append(width)  # Store final width in eV
 
 plt.figure()
-plt.plot(L_int_vec * 1000, np.array(widths_L)/initial_width, ".")
+plt.plot(L_int_vec * 1000, np.array(widths_L)/initial_width_TEM, ".-")
 plt.plot(
     L_int_vec * 1000,
-    [initial_width] * len(L_int_vec),
-    label=f"Initial width = {initial_width:.4f} eV",
+    [initial_width_TEM] * len(L_int_vec),
+    label=f"Initial width = {initial_width_TEM:.4f} eV",
 )
 plt.ylabel("Final Width (eV)")
 plt.xlabel("Interaction Length (mm)")
@@ -1203,9 +1188,6 @@ for i, L_int_test in enumerate(tqdm(L_int_vec, desc="Scanning L_int", position=0
 
 df = pd.DataFrame(_rows, columns=["L_int_m", "v_0_m_per_s", "width"])
 df.to_csv(ACCUM_CSV, mode="a", index=False, header=not file_exists)
-
-
-
 # %% Plotting 2D graphs (TEM-UV)
 plot_v0_L_map("widths_2D_v0_L_(TEM-UV).csv", deltaE_monochrometer_TEM, v_g_func(omega0_TEM, v0_TEM, E_rel, k_rel), E_rel, 0)
 
