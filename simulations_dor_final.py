@@ -127,7 +127,7 @@ def final_state_probability_density(N,
     dE   = δE_f[1] - δE_f[0]
     2*grid_factor * sigmaE/N
     δω_grid, δE_f_grid = np.meshgrid(δω, δE_f, indexing='ij')
-    print(f"dω = {dω}, dE = {dE}")
+    # print(f"dω = {dω}, dE = {dE}")
     rho_i_2d = (1/np.sqrt(2*np.pi*sigmaE**2)) * np.exp(-(δE_f_grid + hbar*δω_grid)**2/(2*sigmaE**2))
     i0 = np.argmin(np.abs(δω))
     K = np.zeros_like(δω)
