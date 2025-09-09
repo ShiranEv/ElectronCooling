@@ -97,50 +97,55 @@ def v_g_CLASSICAL(omega0, v0, E_function, k_function):
     return v0
 def recoil_CLASSICAL(omega0, v0, E_function, k_function):
     return -1/((k(E(v0))*v0**2))
+# numerical functions:
+def nyquist_rate(v0,L_int,energy_span):
+    gamma = np.sqrt(1/(1 - (v0/c)**2))
+    E0 = E_rel(v0)
+    k0 = k_rel(E0)
+    return np.pi*E0**2 *(gamma+1)**2/(4*L_int*k0*energy_span*hbar)
 # Density matrices
 def final_state_probability_density(N,
                                     initial_width_eV,
                                     L_int,
-                                    v_g_function,
-                                    recoil_function,
+                                    v_g,
+                                    recoil,
                                     v0,
                                     omega0,
-                                    k_function,
-                                    E_function,
-                                    v_function,
                                     grid_factor
                                     ):
     # initial_width is sigma in eV
     sigmaE = (initial_width_eV * e) # J
 
-    E0 = E_function(v0)
-    k0 = k_function(E0); k0_m_hw = k_function(E0 - hbar * omega0)
-    
+    E0 = E_rel(v0)
+    k0 = k_rel(E0); k0_m_hw = k_rel(E0 - hbar * omega0)
+
     q0 = k0 - k0_m_hw           # phase matching
-    v_g = v_g_function(omega0, v0, E_function, k_function)
-    recoil = recoil_function(omega0, v0, E_function, k_function)
+    
 
 
     δω = np.linspace(-grid_factor * sigmaE / hbar, grid_factor * sigmaE / hbar, N)
     dω = δω[1] - δω[0]
     δE_f = np.linspace(-3*grid_factor * sigmaE, 3*grid_factor * sigmaE, N)       # J
     dE   = δE_f[1] - δE_f[0]
+    nyquist = nyquist_rate(v0, L_int, energy_span)
+    if dω > nyquist:
+        print(f"Warning: δω = {dω:.3e} > Nyquist rate = {nyquist:.3e} (aliasing may occur)")
     2*grid_factor * sigmaE/N
     δω_grid, δE_f_grid = np.meshgrid(δω, δE_f, indexing='ij')
-    # print(f"dω = {dω}, dE = {dE}")
+    print(f"dω = {dω}, dE = {dE}")
     rho_i_2d = (1/np.sqrt(2*np.pi*sigmaE**2)) * np.exp(-(δE_f_grid + hbar*δω_grid)**2/(2*sigmaE**2))
     i0 = np.argmin(np.abs(δω))
     K = np.zeros_like(δω)
     K[i0] = 1.0 / dω
     rho_i_1d = np.sum(rho_i_2d * K[:, None], axis=0) * dω   # equals rho_i_2d[i0, :]
     rho_i_1d /= (np.sum(rho_i_1d) * dE)
-    
-    Delta_PM = ( k_function(E0 + δE_f_grid + hbar*δω_grid)
-               - k_function(E0 + δE_f_grid - hbar*omega0)
+
+    Delta_PM = ( k_rel(E0 + δE_f_grid + hbar*δω_grid)
+               - k_rel(E0 + δE_f_grid - hbar*omega0)
                - (q0 + (δω_grid / v_g) + 0.5 * recoil * δω_grid**2) )
 
     kernel = np.sinc(Delta_PM * L_int / (2*np.pi)) 
-    factor = e**2 *hbar * v_function(E0 + δE_f_grid + hbar*δω_grid)**2 * L_int**2  / (2*eps0*(δω_grid + omega0))
+    factor = e**2 *hbar * v_rel(E0 + δE_f_grid + hbar*δω_grid)**2 * L_int**2  / (2*eps0*(δω_grid + omega0))
     U_factor = 1/5.699002052485579e-45
 
     # Electron marginal over ω (normalized over J)
@@ -149,7 +154,6 @@ def final_state_probability_density(N,
     p1 = np.sum(rho_f * dE)
     rho_f = rho_f + (1 - p1)*rho_i_1d
     
-
     # Photon marginal over δE_f (normalized over rad/s)
     rho_f_p = np.sum((rho_i_2d * kernel**2), axis=1) * dE
     rho_f_p /= np.sum(rho_f_p * dω)
@@ -166,109 +170,130 @@ def final_state_probability_density(N,
     final_width_eV = compute_FWHM(δE_f, rho_f)/e
 
     return δE_f_eV, rho_f_per_eV, final_width_eV, rho_i_per_eV, δω, rho_f_p, 
-def final_state_probability_density_lossy(
-                                        N,
-                                        k,
+def final_state_probability_density_lossy(N,
                                         initial_width,
                                         L_int,
                                         v_g,
+                                        recoil,
                                         v0,
                                         omega0,
-                                        gamma_db_per_cm
-                                          ):
+                                        grid_factor,
+                                        gamma_db_per_cm):
     
-    # ---------- setup (unchanged) ----------
+    
+    
+    U_factor = 1/(5.699002052485579e-45)
+    
+    # Constants and setup (assuming e, hbar, eps0 are defined globally)
     sigmaE = initial_width * e  # J
-
-    E0 = 0.5 * m * v0**2
-    k0 = k(E0); k0_m_hw = k(E0 - hbar * omega0)
+    E0 = E_rel(v0)
+    k0 = k_rel(E0)
+    k0_m_hw = k_rel(E0 - hbar * omega0)
     q0 = k0 - k0_m_hw
-    recoil = -1 / (k0 * v0**2)  # applied to (δω')^2 per your change
-
-    # global grids for ω and δE_f (same as before)
-    δω  = np.linspace(-4 * sigmaE / hbar,  4 * sigmaE / hbar, N)
-    dω  = δω[1] - δω[0]
-
-    δE_f = np.linspace(-4 * sigmaE, 4 * sigmaE, N)  # J
-    dE   = δE_f[1] - δE_f[0]
-
-    # ---------- losses & Lorentzian width ----------
-    # dB/cm (power) -> amplitude Np/m, then Γ = v_g * α  [rad/s]
-    alpha_np_per_cm = np.log(10.0)/20.0 * gamma_db_per_cm   # amplitude attenuation (Np/cm)
-    alpha_np_per_m  = alpha_np_per_cm * 100.0               # Np/m
-    Gamma = v_g * alpha_np_per_m                            # rad/s
+    
+    omega_span = grid_factor * sigmaE / hbar
+    energy_span = 3 * grid_factor * sigmaE
+    
+    # Grids
+    δω = np.linspace(-omega_span, omega_span, N)
+    dω = δω[1] - δω[0]
+    δE_f = np.linspace(-energy_span, energy_span, N)  # J
+    dE = δE_f[1] - δE_f[0]
+    nyquist = nyquist_rate(v0, L_int, energy_span)
+    if dω > nyquist:
+        print(f"Warning: δω = {dω:.3e} > Nyquist rate = {nyquist:.3e} (aliasing may occur)")
+    
+    # Losses and Lorentzian width
+    alpha_np_per_cm = np.log(10.0) / 20.0 * gamma_db_per_cm
+    alpha_np_per_m = alpha_np_per_cm * 100.0
+    Gamma = v_g * alpha_np_per_m
     if Gamma <= 0:
         Gamma = 1e-24
-
-    # Band half-width in ω set by your global grid
-    W = 4.0 * sigmaE / hbar  # rad/s; δω spans [-W, +W]
-
-    # ---------- outputs ----------
-    rho_f   = np.zeros_like(δE_f)  # electron marginal over J
-    rho_f_p = np.zeros_like(δω)    # photon marginal over rad/s
-
-    # ---------- per-ω local ω' = ω + u grid (plain sums) ----------
-    # window in u: ± min(4Γ, W)  (4Γ = 8 * HWHM)
-    U = min(4.0 * Gamma, W)
-    # choose step to resolve the Lorentzian: du = min(global dω, Γ/8)
-    du_target = Gamma / 8.0
-    du = min(dω, du_target) if du_target > 0 else dω
     
+    # Omega bandwidth
+    W = 4.0 * sigmaE / hbar
+    
+    # Local u grid for Lorentzian integration (finer and narrower)
+    U = min(4.0 * Gamma, W)
+    du_target = Gamma / 32.0  # Finer grid
+    du = du_target if du_target > 0 else dω
     if du <= 0:
         du = dω
-    # number of points on each side (odd count to include u=0)
     M_side = max(1, int(np.ceil(U / du)))
-    u = np.linspace(-M_side * du, M_side * du, 2 * M_side + 1)  # shape (Mu,)
-    u_col = u[:, None]                         # (Mu,1) for broadcasting
-    δE_col = δE_f[None, :]                     # (1,N)
-
-    # ---------- main loop over ω ----------
+    u = np.linspace(-M_side * du, M_side * du, 2 * M_side + 1)
+    u_col = u[:, None]  # (M_u, 1)
+    δE_col = δE_f[None, :]  # (1, N)
+    
+    # Initialize outputs
+    rho_f = np.zeros_like(δE_f)  # Electron marginal
+    rho_f_p = np.zeros_like(δω)  # Photon marginal
+    
+    # Vectorized computation over u and E for each ω (matrix operations via broadcasting)
     for iω, ω in enumerate(δω):
-        ωp = ω + u                              # local ω' grid around current ω, shape (Mu,)
-
-        # Initial joint density ρ_i(E_f+ħω, E_f+ħω): depends only on (ω, E)
-        rho_i_slice = (1/np.sqrt(2*np.pi*sigmaE**2)) * np.exp(-(δE_col + hbar*ω)**2/(2*sigmaE**2))  # (1,N)->(Mu,N)
-
-        # Phase mismatch with q(ω') ≈ q0 + ω'/v_g and recoil on (ω')^2
-        Delta_PM = ( k(E0 + δE_col + hbar*ω)
-                   - k(E0 + δE_col - hbar*omega0)
-                   - (q0 + (ωp[:, None] / v_g) + 0.5 * recoil * (ωp[:, None]**2)) )  # (Mu,N)
-
-        kernel = np.sinc(Delta_PM * L_int / (2*np.pi))                               # (Mu,N)
-
-        # Lorentzian L_Γ(ω' - ω)
-        lorentz = (1/np.pi) * (Gamma/2.0) / ( (u_col**2) + (Gamma/2.0)**2 )          # (Mu,1)->(Mu,N)
-
-        integrand = rho_i_slice * (kernel**2) * lorentz                              # (Mu,N)
-
-        # ---- integrate by plain sums (Riemann rule) ----
-        # electron marginal: integrate over u (ω') and then over ω (outer loop)
-        rho_f += np.sum(integrand, axis=0) * du * dω                                 # -> (N,)
-
-        # photon marginal at this ω: integrate over E and u; no outer dω factor here
-        rho_f_p[iω] = np.sum(integrand) * dE * du
-
-    # ---------- normalize ----------
-    rho_f   /= np.sum(rho_f   * dE)
-    rho_f_p /= np.sum(rho_f_p * dω)
-
-    # ---------- initial 1D (same as before) ----------
-    rho_i_1d = (1/np.sqrt(2*np.pi*sigmaE**2)) * np.exp(-(δE_f)**2/(2*sigmaE**2))
-
-    # ---------- return per-eV (same as before) ----------
-    δE_f_eV      = δE_f / e
+        ωp = ω + u  # (M_u,)
+        
+        # Initial joint density ρ_i(E_f + ħω, E_f + ħω)
+        rho_i_slice = (1 / np.sqrt(2 * np.pi * sigmaE**2)) * \
+                      np.exp(- (δE_col + hbar * ω)**2 / (2 * sigmaE**2))  # (1, N)
+        
+        # Phase mismatch Delta_PM (broadcasts to (M_u, N))
+        Delta_PM = (k_rel(E0 + δE_col + hbar * ω) -
+                    k_rel(E0 + δE_col - hbar * omega0) -
+                    (q0 + (ωp[:, None] / v_g) + 0.5 * recoil * (ωp[:, None]**2)))
+        
+        # Sinc kernel squared
+        kernel = np.sinc(Delta_PM * L_int / (2 * np.pi))**2  # (M_u, N)
+        
+        # Lorentzian L_Γ(u) = L_Γ(ω' - ω)
+        lorentz = (1 / np.pi) * (Gamma / 2.0) / ((u_col**2) + (Gamma / 2.0)**2)  # (M_u, 1)
+        
+        # Factor
+        #factor = (e**2 * hbar * v_rel(E0 + δE_col + hbar * ωp[:, None])**2 * L_int**2) / \
+        #         (2 * eps0 * (ωp[:, None] + omega0 + 1e-30))
+        #factor *= U_factor  # (M_u, 1)
+        factor = 1 
+        # Integrand (broadcasts lorentz to (M_u, N))
+        integrand = factor * rho_i_slice * kernel * lorentz  # (M_u, N)
+        
+        # Integrate over u using Riemann sum
+        integral_over_u = np.sum(integrand, axis=0) * du  # (N,)
+        
+        # Add to electron marginal (integrate over ω)
+        rho_f += integral_over_u * dω
+        
+        # Photon marginal at this ω (integrate over E and u)
+        rho_f_p[iω] = np.sum(integrand * dE * du)
+    
+    # Compute p1 before any normalization
+    p1 = np.sum(rho_f * dE)
+    print(f"p1 = {p1}")
+    rho_f /= np.sum(rho_f * dE) if np.sum(rho_f * dE) != 0 else 1.0
+    # Initial 1D distribution
+    rho_i_1d = (1 / np.sqrt(2 * np.pi * sigmaE**2)) * np.exp(-(δE_f)**2 / (2 * sigmaE**2))
+    
+    # Apply the weighted combination (no normalization of rho_f)
+    rho_f = rho_f #p1*rho_f + (1 - p1) * rho_i_1d
+    
+    # Normalize photon marginal using Riemann sum
+    rho_f_p_sum = np.sum(rho_f_p * dω)
+    rho_f_p /= rho_f_p_sum if rho_f_p_sum != 0 else 1.0
+    
+    # Convert to eV
+    δE_f_eV = δE_f / e
+    dE_eV = δE_f_eV[1] - δE_f_eV[0]
     rho_f_per_eV = rho_f * e
     rho_i_per_eV = rho_i_1d * e
-
-    dE_eV = δE_f_eV[1] - δE_f_eV[0]
-    rho_i_per_eV /= (np.sum(rho_i_per_eV) * dE_eV)
-    rho_f_per_eV /= (np.sum(rho_f_per_eV) * dE_eV)
-
+    
+    # Normalize in eV using Riemann sum (for numerical accuracy)
+    rho_i_sum_eV = np.sum(rho_i_per_eV * dE_eV)
+    rho_i_per_eV /= rho_i_sum_eV if rho_i_sum_eV != 0 else 1.0
+    
+    rho_f_sum_eV = np.sum(rho_f_per_eV * dE_eV)
+    rho_f_per_eV /= rho_f_sum_eV if rho_f_sum_eV != 0 else 1.0
+    
     final_width_eV = compute_FWHM(δE_f, rho_f) / e
+    
     return δE_f_eV, rho_f_per_eV, final_width_eV, rho_i_per_eV, δω, rho_f_p
-
-    gamma = 1 / np.sqrt(1 - (v / c)**2)
-    return (gamma - 1) * m * c**2 / e  # in eV
 # plot functions:
 def plot_v0_L_map(csv_path, initial_width, vg_fixed, E_rel, Loss):
     """
@@ -851,22 +876,25 @@ N = 2**10
 v0     = 0.1 * c                                # electron carrier velocity
 lambda0 = 500e-9                                # central wavelength (m)
 omega0  = 2 * np.pi * c / lambda0               # central angular frequency
-v_g_fixed     = 1*v0                 # photon group velocity (m/s)
+v_g_fixed     = v_g_func(omega0, v0, E_rel, k_rel)                 # photon group velocity (m/s)
 L_int = 0.01  # interaction length (m)  
-deltaE_i = 0.1 * hbar * omega0
-initial_width =  deltaE_i / (e*2 * np.sqrt(2 * np.log(2)))  # Convert FWHM to standard deviation
-gamma_db_per_cm = 100 # dB/cm loss
-
+deltaE_i = 0.1 * hbar * omega0/e
+initial_width =  deltaE_i * (2 * np.sqrt(2 * np.log(2)))  # Convert FWHM to standard deviation
+gamma_db_per_cm = 30 # dB/cm loss
+recoil = recoil_func(omega0, v0, E_rel, k_rel)  
+grid_factor = 4
 # sanity check dw ~ 2*pi*vg/L_int
 (2*np.pi*v_g_fixed/L_int)/(np.log(10.0)/20.0 * gamma_db_per_cm*100*v_g_fixed)
 
 δE_f_eV, rho_f_e, final_width, rho_i_e, δω, rho_f_p = final_state_probability_density_lossy(
                                             N,
-                                            k,
-                                            initial_width,
-                                            L_int, v_g_fixed,
+                                            deltaE_i,
+                                            L_int,
+                                            v_g_fixed,
+                                            recoil,
                                             v0,
                                             omega0,
+                                            grid_factor,
                                             gamma_db_per_cm
                                             )    
 
@@ -885,13 +913,13 @@ plt.legend()
 plt.title("Final Photon Probability Density vs δω")
 plt.show()
 # %% 2D simulation: widths vs v_0 and L_int: (Lossy)
-N = 2**11
+N = 2**8
 L_num = 41
 v_0_num = 41
 vg_fixed = 0.1 * c  # Fixed group velocity for this scan
 L_int_vec = np.linspace(0.0001, 0.01, L_num)              # m
 v_0_vec  = np.linspace(0.999, 1.001, v_0_num) * vg_fixed  # m/s
-gamma  = 100 #dB/cm
+gamma  = 3#dB/cm
 widths_2D = np.zeros((len(L_int_vec), len(v_0_vec)))
 ACCUM_CSV = "widths_2D_v0_L_(Lossy)_100dB.csv"
 file_exists = Path(ACCUM_CSV).exists()   # capture BEFORE writing
@@ -902,13 +930,13 @@ _rows = []
 for i, L_int in enumerate(tqdm(L_int_vec, desc="Scanning L_int")):
     for j, v_0_test in enumerate(tqdm(v_0_vec, desc=f"Scanning v_0 for L_int={L_int:.5f}", leave=False)):
         width = float(final_state_probability_density_lossy(
-                                                            N,
-                                                            k,
-                                                            initial_width,
+                                                            N,                                                            initial_width,
                                                             L_int,
                                                             vg_fixed,
+                                                            recoil,
                                                             v_0_test,
                                                             omega0,
+                                                            grid_factor,
                                                             gamma
                                                             )[2])
         widths_2D[i, j] = width
