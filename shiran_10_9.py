@@ -302,16 +302,46 @@ def final_state_probability_density_loss(N, L_int, gamma_db_per_cm):
 
 # %%
 L_num = 11  # Number of interaction lengths to test
-N = 2**11
+N = 2**9
 L0 = (4 / np.pi) * (E0 / sigmaE) ** 2 * λ(E0 / e)  # optimal interaction length
 print(f"L0 = {L0:.4f} m")
 L_int_vec = np.linspace(0, 0.02, L_num)  # m
+widths_L = []
+probability = []
+widths_L_total = []
+for L_int_test in tqdm(L_int_vec, desc="Scanning L_int", position=0):
+    width, width_tot, p = final_state_probability_density(N, L_int_test)
+    widths_L.append(width)  # Store final width in eV
+    widths_L_total.append(width_tot)  # Store total final width in eV
+    probability.append(p)  # Store final probability
+
+# %%
+plt.figure()
+plt.plot(L_int_vec, np.array(widths_L_total), ".-", label=f"Total Final Width")
+plt.hlines(initial_width, L_int_vec[0], L_int_vec[-1], color="r", linestyle="--", label="Initial Width")
+plt.plot(L_int_vec, 1 / L_int_vec / 4000, ".-", label="1/L_int")
+# plt.vlines(L0, 0, max(widths_L) * 1.1, color="g", linestyle="--", label="L0")
+plt.plot(L_int_vec, 1 / np.sqrt(L_int_vec) / 150, ".-", label="1/sqrt(L_int)")
+
+plt.ylim(0, initial_width * 1.1)
+plt.ylabel("Final Width (eV)")
+plt.xlabel("Interaction Length [m]")
+plt.legend()
+plt.show()
+
+
+# %%
+L_num = 11  # Number of interaction lengths to test
+N = 2**10
+L0 = (4 / np.pi) * (E0 / sigmaE) ** 2 * λ(E0 / e)  # optimal interaction length
+print(f"L0 = {L0:.4f} m")
+L_int_vec = np.logspace(np.log10(0.0001), np.log10(0.02), L_num)  # m
 widths_L = [[] for _ in range(3)]
 probability = [[] for _ in range(3)]
 widths_L_total = [[] for _ in range(3)]
 for i, gamma_db_per_cm in enumerate([0, 30, 100]):
     for L_int_test in tqdm(L_int_vec, desc="Scanning L_int", position=0):
-        width, width_tot, p = final_state_probability_density(N, L_int_test, gamma_db_per_cm)
+        width, width_tot, p = final_state_probability_density_loss(N, L_int_test, gamma_db_per_cm)
         widths_L[i].append(width)  # Store final width in eV
         widths_L_total[i].append(width_tot)  # Store total final width in eV
         probability[i].append(p)  # Store final probability
@@ -319,15 +349,15 @@ for i, gamma_db_per_cm in enumerate([0, 30, 100]):
 plt.figure()
 for i, gamma_db_per_cm in enumerate([0, 30, 100]):
     # plt.plot(L_int_vec, np.array(widths_L[i]), ".-", label=f"Final Width {gamma_db_per_cm} dB/cm")
-    plt.plot(L_int_vec, np.array(widths_L_total[i]), ".-", label=f"Total Final Width {gamma_db_per_cm} dB/cm")
+    plt.loglog(L_int_vec, np.array(widths_L_total[i]), ".-", label=f"Total Final Width {gamma_db_per_cm} dB/cm")
 
 
-plt.hlines(initial_width, L_int_vec[0], L_int_vec[-1], color="r", linestyle="--", label="Initial Width")
-plt.plot(L_int_vec, 1 / L_int_vec / 4000, ".-", label="1/L_int")
+# plt.hlines(initial_width, L_int_vec[0], L_int_vec[-1], color="r", linestyle="--", label="Initial Width")
+plt.loglog(L_int_vec, 1 / L_int_vec / 5000, ".-", label="1/L_int")
 # plt.vlines(L0, 0, max(widths_L) * 1.1, color="g", linestyle="--", label="L0")
-plt.plot(L_int_vec, 1 / np.sqrt(L_int_vec) / 150, ".-", label="1/sqrt(L_int)")
+plt.loglog(L_int_vec, 1 / np.sqrt(L_int_vec) / 100, ".-", label="1/sqrt(L_int)")
 
-plt.ylim(0, initial_width * 1.1)
+# plt.ylim(0, initial_width * 1.1)
 plt.ylabel("Final Width (eV)")
 plt.xlabel("Interaction Length [m]")
 plt.legend()
@@ -342,3 +372,8 @@ plt.legend()
 plt.show()
 
 # %%
+for i in range(3):
+    print(
+        (np.log10(widths_L_total[i][-1]) - np.log10(widths_L_total[i][-2]))
+        / (np.log10(L_int_vec[-1]) - np.log10(L_int_vec[-2]))
+    )
