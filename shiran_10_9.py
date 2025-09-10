@@ -141,9 +141,8 @@ initial_width = sigmaE * 2 * np.sqrt(2 * np.log(2)) / e
 print(f"Initial width (FWHM): {initial_width:.4f} eV")
 
 
-def final_state_probability_density(L_int, gamma_db_per_cm):
+def final_state_probability_density(N, L_int):
     grid_factor = 4
-    N = 2**12
 
     δω = np.linspace(-grid_factor * sigmaE / hbar, grid_factor * sigmaE / hbar, N)
     dω = δω[1] - δω[0]
@@ -195,39 +194,151 @@ def final_state_probability_density(L_int, gamma_db_per_cm):
     return final_width_eV, final_width_eV_total, p1
 
 
+def final_state_probability_density_loss(N, L_int, gamma_db_per_cm):
+    grid_factor = 4
+
+    δω = np.linspace(-grid_factor * sigmaE / hbar, grid_factor * sigmaE / hbar, N)
+    dω = δω[1] - δω[0]
+    δE_f = np.linspace(-grid_factor * sigmaE, grid_factor * sigmaE, N)  # J
+    dE = δE_f[1] - δE_f[0]
+    #### is this correct?
+    energy_span = max(abs(δE_f))
+    ####
+    nyquist = nyquist_rate(v0, L_int, energy_span)
+    if dω > nyquist:
+        print(f"Warning: δω = {dω:.3e} > Nyquist rate = {nyquist:.3e} (aliasing may occur)")
+
+    δω_grid, δE_f_grid = np.meshgrid(δω, δE_f, indexing="ij")
+    rho_i_2d = np.exp(-((δE_f_grid + hbar * δω_grid) ** 2) / (2 * sigmaE**2)) / np.sqrt(2 * np.pi * sigmaE**2)
+    i0 = np.argmin(np.abs(δω))
+    K = np.zeros_like(δω)
+    K[i0] = 1.0 / dω
+    rho_i_1d = np.sum(rho_i_2d * K[:, None], axis=0) * dω  # equals rho_i_2d[i0, :]
+    rho_i_1d /= np.sum(rho_i_1d) * dE
+
+    k0 = k_func(E0)
+    k0_m_hw = k_func(E0 - hbar * omega0)
+    q0 = k0 - k0_m_hw  # phase matching
+
+    # Losses and Lorentzian width
+    alpha_np_per_cm = np.log(10.0) / 20.0 * gamma_db_per_cm
+    alpha_np_per_m = alpha_np_per_cm * 100.0
+    Gamma = vg * alpha_np_per_m
+    if Gamma <= 0:
+        Gamma = 1e-24
+
+    # Omega bandwidth
+    W = 4.0 * sigmaE / hbar
+
+    # Local u grid for Lorentzian integration (finer and narrower)
+    U = min(4.0 * Gamma, W)
+    du_target = Gamma / 32.0  # Finer grid
+    du = du_target if du_target > 0 else dω
+    if du <= 0:
+        du = dω
+    M_side = max(1, int(np.ceil(U / du)))
+    u = np.linspace(-M_side * du, M_side * du, 2 * M_side + 1)
+    u_col = u[:, None]  # (M_u, 1)
+    δE_col = δE_f[None, :]  # (1, N)
+
+    # Initialize outputs
+    rho_f = np.zeros_like(δE_f)  # Electron marginal
+    # rho_f_p = np.zeros_like(δω)  # Photon marginal
+
+    # Vectorized computation over u and E for each ω (matrix operations via broadcasting)
+    for ω in tqdm(δω, desc=f"Scanning δω"):
+        ωp = ω + u  # (M_u,)
+        # Initial joint density ρ_i(E_f + ħω, E_f + ħω)
+        rho_i_slice = (1 / np.sqrt(2 * np.pi * sigmaE**2)) * np.exp(
+            -((δE_col + hbar * ω) ** 2) / (2 * sigmaE**2)
+        )  # (1, N)
+
+        # Phase mismatch Delta_PM (broadcasts to (M_u, N))
+        Delta_PM = (
+            k_func(E0 + δE_col + hbar * ω)
+            - k_func(E0 + δE_col - hbar * omega0)
+            - (q0 + (ωp[:, None] / vg) + 0.5 * recoil * (ωp[:, None] ** 2))
+        )
+
+        kernel = (hbar * k_func(E0 + δE_col + hbar * ω) / m) * np.sinc(Delta_PM * L_int / (2 * np.pi))
+
+        factor = e**2 * hbar * L_int**2 / (2 * eps0 * (ω + omega0))
+        U_factor = 1 / 4.1383282083233256e-51
+
+        # Lorentzian L_Γ(u) = L_Γ(ω' - ω)
+        lorentz = (1 / np.pi) * (Gamma / 2.0) / ((u_col**2) + (Gamma / 2.0) ** 2)  # (M_u, 1)
+
+        # Integrand (broadcasts lorentz to (M_u, N))
+        integrand = factor * U_factor * rho_i_slice * kernel**2 * lorentz  # (M_u, N)
+
+        # Integrate over u using Riemann sum
+        integral_over_u = np.sum(integrand, axis=0) * du  # (N,)
+
+        # Add to electron marginal (integrate over ω)
+        rho_f += integral_over_u * dω
+
+        # Photon marginal at this ω (integrate over E and u)
+        # rho_f_p[iω] = np.sum(integrand * dE * du)
+
+    # Compute p1 before any normalization
+    p1 = np.sum(rho_f * dE)
+    print(f"p1 = {p1}")
+    rho_f /= np.sum(rho_f * dE) if np.sum(rho_f * dE) != 0 else 1.0
+    final_width_eV = compute_FWHM(δE_f, rho_f) / e
+    # Initial 1D distribution
+    rho_i_1d = (1 / np.sqrt(2 * np.pi * sigmaE**2)) * np.exp(-((δE_f) ** 2) / (2 * sigmaE**2))
+
+    # Apply the weighted combination (no normalization of rho_f)
+
+    rho_e_total = rho_f + (1 - p1) * rho_i_1d
+    final_width_eV_total = compute_FWHM(δE_f, rho_e_total) / e
+
+    # # Normalize photon marginal using Riemann sum
+    # rho_f_p_sum = np.sum(rho_f_p * dω)
+    # rho_f_p /= rho_f_p_sum if rho_f_p_sum != 0 else 1.0
+
+    return final_width_eV, final_width_eV_total, p1
+
+
 # %%
-L_num = 21  # Number of interaction lengths to test
+L_num = 11  # Number of interaction lengths to test
+N = 2**11
 L0 = (4 / np.pi) * (E0 / sigmaE) ** 2 * λ(E0 / e)  # optimal interaction length
 print(f"L0 = {L0:.4f} m")
-L_int_vec = np.linspace(0, 0.04, L_num)  # m
-widths_L = []
-probability = []
-widths_L_total = []
-for L_int_test in tqdm(L_int_vec, desc="Scanning L_int"):
-    width, width_tot, p = final_state_probability_density(L_int_test)
-    widths_L.append(width)  # Store final width in eV
-    widths_L_total.append(width_tot)  # Store total final width in eV
-    probability.append(p)  # Store final probability
+L_int_vec = np.linspace(0, 0.02, L_num)  # m
+widths_L = [[] for _ in range(3)]
+probability = [[] for _ in range(3)]
+widths_L_total = [[] for _ in range(3)]
+for i, gamma_db_per_cm in enumerate([0, 30, 100]):
+    for L_int_test in tqdm(L_int_vec, desc="Scanning L_int", position=0):
+        width, width_tot, p = final_state_probability_density(N, L_int_test, gamma_db_per_cm)
+        widths_L[i].append(width)  # Store final width in eV
+        widths_L_total[i].append(width_tot)  # Store total final width in eV
+        probability[i].append(p)  # Store final probability
 # %%
 plt.figure()
-# plt.plot(L_int_vec, np.array(widths_L), ".-", label="Final Width")
-plt.plot(L_int_vec, np.array(widths_L_total), ".-", label="Total Final Width")
+for i, gamma_db_per_cm in enumerate([0, 30, 100]):
+    # plt.plot(L_int_vec, np.array(widths_L[i]), ".-", label=f"Final Width {gamma_db_per_cm} dB/cm")
+    plt.plot(L_int_vec, np.array(widths_L_total[i]), ".-", label=f"Total Final Width {gamma_db_per_cm} dB/cm")
+
+
 plt.hlines(initial_width, L_int_vec[0], L_int_vec[-1], color="r", linestyle="--", label="Initial Width")
-plt.plot(L_int_vec, 1 / L_int_vec / 4000, ".-", label="1/L_int (arbitrary units)")
+plt.plot(L_int_vec, 1 / L_int_vec / 4000, ".-", label="1/L_int")
 # plt.vlines(L0, 0, max(widths_L) * 1.1, color="g", linestyle="--", label="L0")
+plt.plot(L_int_vec, 1 / np.sqrt(L_int_vec) / 150, ".-", label="1/sqrt(L_int)")
+
 plt.ylim(0, initial_width * 1.1)
 plt.ylabel("Final Width (eV)")
 plt.xlabel("Interaction Length [m]")
 plt.legend()
 plt.show()
 # %%
-plt.plot(L_int_vec, probability, ".-")
+plt.figure()
+for i, gamma_db_per_cm in enumerate([0, 30, 100]):
+    plt.plot(L_int_vec, probability[i], ".-", label=f"{gamma_db_per_cm} dB/cm")
 plt.ylabel("Scattering Probability")
 plt.xlabel("Interaction Length [m]")
+plt.legend()
 plt.show()
-
-# %%
-plt.plot(L_int_vec[6:], np.array(widths_L_total[6:]), ".-", label="Total Final Width")
-plt.plot(L_int_vec[6:], 1 / L_int_vec[6:] / 4000, ".-", label="1/L_int (arbitrary units)")
 
 # %%
