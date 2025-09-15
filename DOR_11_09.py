@@ -98,34 +98,36 @@ def nyquist_rate(v0,L_int,energy_span):
     k0 = k_rel(E0)
     return np.pi*E0**2 *(gamma+1)**2/(4*L_int*k0*energy_span*hbar)
 # Density matrices
-def final_state_probability_density(N, L_int,sigmaE_eV,v0,omega0,v_g,recoil):
+def final_state_probability_density(N, L_int,sigmaE_eV,v0,omega0,v_g,recoil,gamma_dB_per_cm=0):
     grid_factor = 4
-    sigmaE = sigmaE_eV * e  # J
-    δω = np.linspace(-grid_factor * sigmaE / hbar, grid_factor * sigmaE / hbar, N)
+    sigmaE = sigmaE_eV * e  # eV → J
+
+    energy_span = grid_factor * sigmaE  # J
+    omega_span = grid_factor * sigmaE / hbar  # rad/s
+
+
+    δω = np.linspace(-omega_span, omega_span, N)
     dω = δω[1] - δω[0]
-    δE_f = np.linspace(-grid_factor * sigmaE, grid_factor * sigmaE, N)  # J
+    δE_f = np.linspace(-energy_span, energy_span, N)  # J
     dE = δE_f[1] - δE_f[0]
-   
+
     energy_span = max(abs(δE_f))
-    
-    # nyquist = nyquist_rate(v0, L_int, energy_span)
-    # if dω > nyquist:
-    #     print(f"Warning: δω = {dω:.3e} > Nyquist rate = {nyquist:.3e} (aliasing may occur)")
+    nyquist = nyquist_rate(v0, L_int, energy_span)
+    if dω > nyquist:
+        print(f"Warning: δω = {dω:.3e} > Nyquist rate = {nyquist:.3e} (aliasing may occur)")
 
     δω_grid, δE_f_grid = np.meshgrid(δω, δE_f, indexing="ij")
     rho_i_2d = np.exp(-((δE_f_grid + hbar * δω_grid) ** 2) / (2 * sigmaE**2)) / np.sqrt(2 * np.pi * sigmaE**2)
     i0 = np.argmin(np.abs(δω))
     K = np.zeros_like(δω)
     K[i0] = 1.0 / dω
-    rho_e_initial = np.sum(rho_i_2d * K[:, None], axis=0) * dω  # equals rho_i_2d[i0, :]
-    rho_e_initial /= np.sum(rho_e_initial) * dE
+    rho_i_e = np.sum(rho_i_2d * K[:, None], axis=0) * dω  # equals rho_i_2d[i0, :]
+    rho_i_e /= np.sum(rho_i_e) * dE
 
-    E0 = E_rel(v0)
     k0 = k_rel(E0)
     k0_m_hw = k_rel(E0 - hbar * omega0)
     q0 = k0 - k0_m_hw  # phase matching
-    
-    
+
     Delta_PM = (
         k_rel(E0 + δE_f_grid + hbar * δω_grid)
         - k_rel(E0 + δE_f_grid - hbar * omega0)
@@ -136,41 +138,49 @@ def final_state_probability_density(N, L_int,sigmaE_eV,v0,omega0,v_g,recoil):
 
     factor = e**2 * hbar * L_int**2 / (2 * eps0 * (δω_grid + omega0))
     U_factor = 1 / 4.1383282083233256e-51
-    rho_f_total = factor * U_factor * (rho_i_2d * kernel**2)
-    # rho_f_total =  (rho_i_2d * kernel**2)
+    rho_f = factor * U_factor * (rho_i_2d * kernel**2)
 
     # Electron marginal over ω (normalized over J)
-    rho_e = np.sum(rho_f_total, axis=0) * dω
-    final_width_eV = compute_FWHM(δE_f, rho_e) / e
+    rho_f_e = np.sum(rho_f, axis=0) * dω
+    rho_f_e /= np.sum(rho_f_e * dE) if np.sum(rho_f_e * dE) != 0 else 1.0
+    final_width_eV = compute_FWHM(δE_f, rho_f_e) / e
 
-    p1 = np.sum(rho_e * dE)
-    rho_e = rho_e / p1  # Normalize
-
-    # Convert δE_f to eV for output
-    δE_f_eV = δE_f / e
-    rho_e_initial_eV = rho_e_initial * e  # Convert density to per eV
-    rho_e_eV = rho_e * e                  # Convert density to per eV
+    p1 = np.sum(rho_f_e * dE)
 
     # Photon marginal over δE_f (normalized over rad/s)
-    rho_p = np.sum(rho_f_total, axis=1) * dE
-    rho_p /= np.sum(rho_p * dω)
+    rho_f_p = np.sum(rho_f, axis=1) * dE
+    rho_f_p /= np.sum(rho_f_p * dω) if np.sum(rho_f_p * dω) != 0 else 1.0
 
-    return rho_e_eV, rho_e_initial_eV, rho_p, final_width_eV, p1
+    # Convert grids and distributions to eV
+    δE_f_eV = δE_f / e
+    δω_eV = hbar * δω / e
+    rho_f_e_eV = rho_f_e / e
+    rho_i_e_eV = rho_i_e / e
 
-def final_state_probability_density_loss(N, L_int, sigmaE_eV, v0, omega0, gamma_db_per_cm):
-    grid_factor = 4
-    sigmaE = sigmaE_eV * e  # J
+    alpha_np_per_cm = np.log(10)/10.0 * gamma_dB_per_cm   # power → Nepers (power)
+    alpha_amp_per_cm = 0.5 * alpha_np_per_cm              # amplitude Nepers/cm
+    alpha_np_per_m  = alpha_amp_per_cm * 100.0
+    Gamma = v_g * alpha_np_per_m
+    if Gamma <= 0:
+        Gamma = 1e-24
+    L_eff = v_g/Gamma if Gamma > 0 else L_int
+    return δE_f_eV, δω_eV, rho_f_e_eV, rho_i_e_eV, rho_f_p, final_width_eV, p1, L_eff
+
+def final_state_probability_density_loss(N, L_int,sigmaE_eV,v0,omega0,v_g,recoil,gamma_dB_per_cm):
+    grid_factor = 5
     
-    δω = np.linspace(-grid_factor * sigmaE / hbar, grid_factor * sigmaE / hbar, N)
+    sigmaE = sigmaE_eV * e 
+    energy_span = grid_factor * sigmaE  # J
+    omega_span = grid_factor * sigmaE / hbar
+    
+    δω = np.linspace(-omega_span, omega_span, N)
     dω = δω[1] - δω[0]
-    δE_f = np.linspace(-grid_factor * sigmaE, grid_factor * sigmaE, N)  # J
+    δE_f = np.linspace(-energy_span, energy_span, N)  # J
     dE = δE_f[1] - δE_f[0]
-    #### is this correct?
-    energy_span = max(abs(δE_f))
-    ####
-    # nyquist = nyquist_rate(v0, L_int, energy_span)
-    # if dω > nyquist:
-    #     print(f"Warning: δω = {dω:.3e} > Nyquist rate = {nyquist:.3e} (aliasing may occur)")
+    
+    nyquist = nyquist_rate(v0, L_int, energy_span)
+    if dω > nyquist:
+        print(f"Warning: δω = {dω:.3e} > Nyquist rate = {nyquist:.3e} (aliasing may occur)")
 
     δω_grid, δE_f_grid = np.meshgrid(δω, δE_f, indexing="ij")
     rho_i_2d = np.exp(-((δE_f_grid + hbar * δω_grid) ** 2) / (2 * sigmaE**2)) / np.sqrt(2 * np.pi * sigmaE**2)
@@ -183,22 +193,18 @@ def final_state_probability_density_loss(N, L_int, sigmaE_eV, v0, omega0, gamma_
     k0 = k_rel(E0)
     k0_m_hw = k_rel(E0 - hbar * omega0)
     q0 = k0 - k0_m_hw  # phase matching
-    vg = v_g_func(omega0, v0)
-    recoil = recoil_func(omega0, v0)
-    
+
     # Losses and Lorentzian width
-    alpha_np_per_cm = np.log(10.0) / 20.0 * gamma_db_per_cm
-    alpha_np_per_m = alpha_np_per_cm * 100.0
-    Gamma = vg * alpha_np_per_m
+    alpha_np_per_cm = np.log(10)/10.0 * gamma_dB_per_cm   # power → Nepers (power)
+    alpha_amp_per_cm = 0.5 * alpha_np_per_cm              # amplitude Nepers/cm
+    alpha_np_per_m  = alpha_amp_per_cm * 100.0
+    Gamma = v_g * alpha_np_per_m
     if Gamma <= 0:
         Gamma = 1e-24
-
-    # Omega bandwidth
-    W = 4.0 * sigmaE / hbar
-
+    L_eff = v_g/Gamma if Gamma > 0 else L_int
     # Local u grid for Lorentzian integration (finer and narrower)
-    U = min(4.0 * Gamma, W)
-    du_target = Gamma / 32.0  # Finer grid
+    U = min(4.0 * Gamma, omega_span)
+    du_target = Gamma / 64.0  # Finer grid
     du = du_target if du_target > 0 else dω
     if du <= 0:
         du = dω
@@ -208,14 +214,13 @@ def final_state_probability_density_loss(N, L_int, sigmaE_eV, v0, omega0, gamma_
     δE_col = δE_f[None, :]  # (1, N)
 
     # Initialize outputs
-    rho_f = np.zeros_like(δE_f)  # Electron marginal
-    # rho_f_p = np.zeros_like(δω)  # Photon marginal
-
-    # Vectorized computation over u and E for each ω (matrix operations via broadcasting)
-    for ω in tqdm(δω, desc=f"Scanning δω"):
+    rho_f_e = np.zeros_like(δE_f)  # Electron marginal
+    rho_f_p = np.zeros_like(δω)  # Photon marginal
+    
+    for iω, ω in enumerate(tqdm(δω, desc=f"Scanning δω")):
         ωp = ω + u  # (M_u,)
         # Initial joint density ρ_i(E_f + ħω, E_f + ħω)
-        rho_i_slice = (1 / np.sqrt(2 * np.pi * sigmaE**2)) * np.exp( 
+        rho_i_slice = (1 / np.sqrt(2 * np.pi * sigmaE**2)) * np.exp(
             -((δE_col + hbar * ω) ** 2) / (2 * sigmaE**2)
         )  # (1, N)
 
@@ -223,7 +228,7 @@ def final_state_probability_density_loss(N, L_int, sigmaE_eV, v0, omega0, gamma_
         Delta_PM = (
             k_rel(E0 + δE_col + hbar * ω)
             - k_rel(E0 + δE_col - hbar * omega0)
-            - (q0 + (ωp[:, None] / vg) + 0.5 * recoil * (ωp[:, None] ** 2))
+            - (q0 + (ωp[:, None] / v_g) + 0.5 * recoil * (ωp[:, None] ** 2))
         )
 
         kernel = (hbar * k_rel(E0 + δE_col + hbar * ω) / m) * np.sinc(Delta_PM * L_int / (2 * np.pi))
@@ -241,33 +246,30 @@ def final_state_probability_density_loss(N, L_int, sigmaE_eV, v0, omega0, gamma_
         integral_over_u = np.sum(integrand, axis=0) * du  # (N,)
 
         # Add to electron marginal (integrate over ω)
-        rho_f += integral_over_u * dω
+        rho_f_e += integral_over_u * dω
 
         # Photon marginal at this ω (integrate over E and u)
-        #rho_f_p[iω] = np.sum(integrand * dE * du)
-    rho_f_p = np.sum(integrand, axis=1) * dE * du
-    # Compute p1 before any normalization
-    p1 = np.sum(rho_f * dE)
-    print(f"p1 = {p1}")
-    rho_f /= np.sum(rho_f * dE) if np.sum(rho_f * dE) != 0 else 1.0
-    rho_f_e = rho_f
-    final_width_eV = compute_FWHM(δE_f, rho_f_e) / e
-    # Initial 1D distribution
-    rho_i_1d = (1 / np.sqrt(2 * np.pi * sigmaE**2)) * np.exp(-((δE_f) ** 2) / (2 * sigmaE**2))
-    rho_i_1d = rho_i_1d * e  # Convert density to per eV
-    # Apply the weighted combination (no normalization of rho_f)
+        rho_f_p[iω] = np.sum(integrand) * dE * du
 
     
-    rho_f_e = compute_FWHM(δE_f, rho_f_e) / e
- 
-    # Normalize photon marginal using Riemann sum
-    rho_f_p_sum = np.sum(rho_f_p * dω)
-    rho_f_p /= rho_f_p_sum if rho_f_p_sum != 0 else 1.0
-    # Convert outputs to eV units
-    δE_f_eV = δE_f / e
-    rho_i_e = rho_i_1d
+    p1 = np.sum(rho_f_e * dE)
+    
+    # Normalize electron marginal
+    rho_f_e /= np.sum(rho_f_e * dE) if np.sum(rho_f_e * dE) != 0 else 1.0
+    final_width_eV = compute_FWHM(δE_f, rho_f_e) / e
+    # Initial 1D distribution
+    rho_i_e = (1 / np.sqrt(2 * np.pi * sigmaE**2)) * np.exp(-((δE_f) ** 2) / (2 * sigmaE**2))
 
-    return δE_f_eV, δω, rho_i_e, rho_f_p, final_width_eV, p1
+    # Photon marginal over δE_f (normalized over rad/s)
+    # (If you want photon marginal, sum over E for each ω)
+    
+
+    # Convert grids to eV
+    δE_f_eV = δE_f / e
+    δω_eV = hbar * δω / e
+
+    # Return energy and frequency grids (in eV), final distributions, width, and p1
+    return δE_f_eV, δω_eV, rho_f_e, rho_i_e, rho_f_p, final_width_eV, p1, L_eff
 #plot functions:
 def plot_v0_L_map(csv_path, initial_width, vg_fixed, E_rel, Loss):
     """
@@ -486,8 +488,37 @@ def plot_v0_Lmap_COMPARISSON(file1, file2, file3, file4, initial_width, titles, 
     plt.show()
 
     return fig, axes
+def dispersion_plot(omega0, v0,v_g_function,recoil_function, E_function, k_function):
+    # frequency grid around ω0
+    omega_vec = np.linspace(0.005, 15, 200) * omega0
+    δω_vec    = omega_vec - omega0
+
+    # phase-matching linearization point (non-zero!)
+    E0 = E_function(v0)                                 # central electron energy (J)
+    q0_PM  = k_function(E0) - k_function(E0 - hbar*omega0)
+    v_g     = v_g_function(omega0, v0)
+    recoil = recoil_function(omega0, v0)
+
+    k_diff_vec = Δk(0.0, E0, δω_vec, omega0, k_function)     # electron Δk(δω)
+    q_vec      = q(δω_vec, q0_PM, v_g, recoil)           # photon q(δω)
+
+    # Find index closest to phase-matching point (ω=ω0, k=q0_PM)
+    idx_pm = np.argmin(np.abs(omega_vec - omega0))
+
+    plt.figure()
+    plt.plot(k_diff_vec, omega_vec/(2*np.pi), 'b.', label="Δk(δω)")
+    plt.plot(q_vec,      omega_vec/(2*np.pi), 'r.', label="q(δω)")
+    plt.scatter([q0_PM], [omega0/(2*np.pi)], color='k', marker='x', s=80, label="Phase-matching point")
+    plt.xlabel("Wavenumber (1/m)")
+    plt.ylabel("Frequency (Hz)")
+    plt.title("Relativistic Dispersion: Δk vs q(ω)")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+    
 # %%************************************************************SEM setup************************************************************%% # 
 # %% SEM setup 
+N =2**9
 v0 = 0.1 * c  # electron velocity
 E0 = E_rel(v0)
 lambda0 = 500e-9
@@ -495,323 +526,88 @@ omega0 = 2 * np.pi * c / lambda0  # central angular frequency (rad/s)
 L_int = 0.01  # m
 sigmaE = 0.1 * hbar * omega0 / e
 initial_width = sigmaE * 2 * np.sqrt(2 * np.log(2)) 
+gamma_dB_per_cm = 30
 
-rho_e, rho_e_initial, rho_p, final_width_eV, p1 = final_state_probability_density(2**10, L_int, sigmaE, v0, omega0,
-                                                                   v_g_func(omega0, v0), recoil_func(omega0, v0))
-# Plot electron final and initial distributions
-
-print(p1)
-# δE_f grid in eV
-N = len(rho_e)
-grid_factor = 4
-sigmaE_J = sigmaE * e  # Convert to J if needed
-δE_f = np.linspace(-grid_factor * sigmaE_J, grid_factor * sigmaE_J, N)  # J
-δE_f_eV = δE_f / e
-δω = np.linspace(-grid_factor * sigmaE_J / hbar, grid_factor * sigmaE_J / hbar, N)
-
-
-plt.figure(figsize=(8, 5))
-plt.plot(δE_f_eV, rho_e, label="Final electron distribution ($\\rho_f$)")
-plt.plot(δE_f_eV, rho_e_initial, label="Initial electron distribution ($\\rho_i$)", linestyle="--")
-plt.xlabel("Energy deviation $\\delta E_f$ (eV)")
-plt.ylabel("Probability density")
-plt.title("Electron Energy Distributions")
-plt.legend()
-plt.tight_layout()
-plt.show()
-
-# Plot photon distribution
-plt.figure(figsize=(8, 5))
-# δω grid in rad/s
-
-plt.plot(δω, rho_p, label="Photon distribution")
-plt.xlabel("Frequency deviation $\\delta\\omega$ (rad/s)")
-plt.ylabel("Probability density")
-plt.title("Photon Frequency Distribution")
-plt.legend()
-plt.tight_layout()
-plt.show()
-
-# %% L vs width Lossless:
-L_num = 21  # Number of interaction lengths to test
-N = 2**9
-L_int_vec = np.linspace(0.0001, 0.01, L_num)  # m
-widths_L = []
-probability = []
-for L_int_test in tqdm(L_int_vec, desc="Scanning L_int", position=0):
-    width = final_state_probability_density(N, L_int_test, sigmaE, v0, omega0, v_g_func(omega0, v0), recoil_func(omega0, v0))[3]
-    widths_L.append(width)  # Store final width in eV
-
-
-# Find intersection of widths_L with initial_width
-widths_L = np.array(widths_L)
-L_int_vec = np.array(L_int_vec)
-diff = widths_L - initial_width
-
-# Find sign changes (crossings)
-sign_changes = np.where(np.diff(np.sign(diff)))[0]
-if len(sign_changes) > 0:
-    # Linear interpolation for more accurate intersection
-    idx = sign_changes[0]
-    f_interp = interp1d(widths_L[idx:idx+2], L_int_vec[idx:idx+2])
-    L_cross = f_interp(initial_width)
-    print(f"Intersection at L = {L_cross:.6g} m (width = initial width)")
-else:
-    print("No intersection found between widths_L and initial_width.")
-# Plot widths vs interaction length after the loop
-plt.figure(figsize=(8, 5))
-plt.plot(L_int_vec, widths_L, marker='o', label="Final width (eV)")
-plt.axhline(initial_width, color='r', linestyle='--', label="Initial width (eV)")
-if len(sign_changes) > 0:
-    plt.axvline(L_cross, color='g', linestyle='--', label=f"L0 = {L_cross:.4g} m")
-plt.xlabel("Interaction length $L_{int}$ (m)")
-plt.ylabel("Width (eV)")
-plt.title("Final Width vs Interaction Length")
-plt.grid(True)
-plt.legend()
-plt.tight_layout()
-plt.show()
-# %% L0 comparison
-L0_theory = 4*E0*v0/(omega0*sigmaE*e)
-L0  = 0.00051  # m
-print(f"Theoretical L0 = {L0_theory:.6g} m, Simulated L0 = {L0:.6g} m, Ratio = {L0/L0_theory:.3f} ")
-# %% L vs width with loss:
-L_num = 11  # Number of interaction lengths to test
-N = 2**10
-
-L_int_vec = np.logspace(np.log10(0.0001), np.log10(0.02), L_num)  # m
-widths_L = [[] for _ in range(3)]
-for i, gamma_db_per_cm in enumerate([0, 30, 100]):
-    for L_int_test in tqdm(L_int_vec, desc="Scanning L_int", position=0):
-        width = final_state_probability_density_loss(N, L_int_test, sigmaE, v0, omega0, gamma_db_per_cm)[3]
-        widths_L[i].append(width)  # Store final width in eV
-plt.figure()
-# %% plots
-
-widths_L_total = [np.array(w) for w in widths_L]
-
-# Calculate L0 for the vertical line (using the same formula as above)
-L0_theory = 1.18 * 4 * E0 * v0 / (omega0 * sigmaE * e)
-
-# Plot vertical line for L0
-
-
-plt.figure(figsize=(8, 5))
-colors = ['b', 'm', 'c']  # Distinct colors for the three loss cases
-labels = [f"Final Width {gamma_db_per_cm} dB/cm" for gamma_db_per_cm in [0, 30, 100]]
-for i, (color, label) in enumerate(zip(colors, labels)):
-    plt.loglog(L_int_vec, widths_L_total[i], ".-", color=color, label=label)
-plt.axhline(initial_width, color='r', linestyle='--', label="Initial width (eV)")
-plt.axvline(L0, color='g', linestyle='--', label=f"L0  = {L0:.4g} m")
-plt.axvline(L0_theory, color='y', linestyle='--', label=f"L0 (theory) = {L0_theory:.4g} m")
-plt.loglog(L_int_vec, 1 / L_int_vec / 5000, ".-", color='orange', label=r"$\propto 1/L_{int}$")
-plt.loglog(L_int_vec, 1 / np.sqrt(L_int_vec) / 100, ".-", color='k', label=r"$\propto 1/\sqrt{L_{int}}$")
-plt.xlabel("Interaction Length $L_{int}$ (m)", fontsize=12)
-plt.ylabel("Final Electron Energy Width (eV)", fontsize=12)
-plt.title("Final Width vs Interaction Length (log-log)", fontsize=14)
-plt.grid(True, which="both", ls="--")
-plt.legend(title="Legend", fontsize=10)
-plt.tight_layout()
-plt.show()
-      
-# %%************************************************************ TEM setup************************************************************%% # 
-# %% TEM setup
-# Electron:
-sigmaE = 100e-3  # eV    (monochromated TEM energy spread)
-E0 = 80e3                      # eV    (ELECTRON ENERGY 80 keV)
-v0 = v_rel(E0)             
-# Photon & Waveguide :
-λ_TEM = λ(0.8)                   # m     (wavelength) should be 0.8 - 1.2 eV
-L_int = 3                   # interaction length (m)
-omega0  = 2 * np.pi * c / λ_TEM               # central angular frequency (rad/s)
-initial_width = sigmaE * 2 * np.sqrt(2 * np.log(2)) 
-
-rho_e, rho_e_initial, rho_p, final_width_eV, p1 = final_state_probability_density(2**10, L_int, sigmaE, v0, omega0,
-                                                                   v_g_func(omega0, v0), recoil_func(omega0, v0))
-# Plot electron final and initial distributions
-
-print(p1)
-# δE_f grid in eV
-N = len(rho_e)
-grid_factor = 4
-sigmaE_J = sigmaE * e  # Convert to J if needed
-δE_f = np.linspace(-grid_factor * sigmaE_J, grid_factor * sigmaE_J, N)  # J
-δE_f_eV = δE_f / e
-δω = np.linspace(-grid_factor * sigmaE_J / hbar, grid_factor * sigmaE_J / hbar, N)
-
-
-plt.figure(figsize=(8, 5))
-plt.plot(δE_f_eV, rho_e, label="Final electron distribution ($\\rho_f$)")
-plt.plot(δE_f_eV, rho_e_initial, label="Initial electron distribution ($\\rho_i$)", linestyle="--")
-plt.xlabel("Energy deviation $\\delta E_f$ (eV)")
-plt.ylabel("Probability density")
-plt.title("Electron Energy Distributions")
-plt.legend()
-plt.grid(True)
-plt.tight_layout()
-plt.show()
-
-# Plot photon distribution
-plt.figure(figsize=(8, 5))
-# δω grid in rad/s
-
-plt.plot(δω, rho_p, label="Photon distribution")
-plt.xlabel("Frequency deviation $\\delta\\omega$ (rad/s)")
-plt.ylabel("Probability density")
-plt.title("Photon Frequency Distribution")
-plt.legend()
-plt.grid(True)
-plt.tight_layout()
-plt.show()
-# %% TEM with losses:
-    # Lossy TEM simulation: set loss value (e.g., 30 dB/cm)
-gamma_db_per_cm = 30
-
-rho_e, δω, rho_e_initial, rho_p, final_width_eV, p1 = final_state_probability_density_loss(2**10, L_int, sigmaE, v0, omega0,
-                                                                   gamma_db_per_cm)
-
-    # δE_f grid in eV (reuse N, grid_factor, sigmaE_J from above)
-plt.figure(figsize=(8, 5))
-plt.plot(δE_f_eV, rho_e, label="Final electron distribution (lossy, $\\rho_f$)")
-plt.plot(δE_f_eV, rho_e_initial, label="Initial electron distribution ($\\rho_i$)", linestyle="--")
-plt.xlabel("Energy deviation $\\delta E_f$ (eV)")
-plt.ylabel("Probability density")
-plt.title(f"Electron Energy Distributions (Loss = {gamma_db_per_cm} dB/cm)")
-plt.legend()
-plt.grid(True)
-plt.tight_layout()
-plt.show()
-
-plt.figure(figsize=(8, 5))
-plt.plot(δω, rho_p, label="Photon distribution (lossy)")
-plt.xlabel("Frequency deviation $\\delta\\omega$ (rad/s)")
-plt.ylabel("Probability density")
-plt.title(f"Photon Frequency Distribution (Loss = {gamma_db_per_cm} dB/cm)")
-plt.legend()
-plt.grid(True)
-plt.tight_layout()
-plt.show()
-# %%  L vs width :
-L_num = 21  # Number of interaction lengths to test
-N = 2**9
-L_int_vec = np.linspace(0.1, 20, L_num)  # m
-loss_values = [0, 30, 100]
-widths_L = [[] for _ in loss_values]
-results = []
-
-for i, gamma_db_per_cm in enumerate(loss_values):
-    for L_int_test in tqdm(L_int_vec, desc=f"Scanning L_int (Loss={gamma_db_per_cm} dB/cm)", position=0):
-        width = final_state_probability_density_loss(N, L_int_test, sigmaE, v0, omega0, gamma_db_per_cm)[3]
-        widths_L[i].append(width)  # Store final width in eV
-        results.append({"L_int_m": L_int_test, "gamma_db_per_cm": gamma_db_per_cm, "width": width})
-
-output_file = "tem_energy_width_vs_length_vs_loss.csv"
-if not os.path.exists(output_file):
-    with open(output_file, mode="w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["L_int_m", "gamma_db_per_cm", "width"])
-        writer.writeheader()
-        writer.writerows(results)
-else:
-    # Optionally append new data (skip if not needed)
-    with open(output_file, mode="a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["L_int_m", "gamma_db_per_cm", "width"])
-        writer.writerows(results)
-        
-        # Read widths vs length vs loss from CSV and plot all losses on the same figure
+δE_f_eV, δω, rho_e, rho_e_initial, rho_f_p, final_width_eV, p1,l_eff = final_state_probability_density_loss(N, L_int, sigmaE, v0, omega0,
+                                                                   v_g_func(omega0, v0), recoil_func(omega0, v0), gamma_dB_per_cm)
 #%%
-# Find intersection of widths_L with initial_width
-
-        csv_file = "tem_energy_width_vs_length_vs_loss.csv"
-        df = pd.read_csv(csv_file)
-
-        loss_values = [0, 30, 100]
-        plt.figure(figsize=(8, 5))
-        colors = ['b', 'm', 'c']
-        labels = [f"Final Width {gamma_db_per_cm} dB/cm" for gamma_db_per_cm in loss_values]
-
-        for color, label, gamma_db_per_cm in zip(colors, labels, loss_values):
-            group = df[df["gamma_db_per_cm"] == gamma_db_per_cm].sort_values("L_int_m")
-            plt.plot(group["L_int_m"], group["width"], marker='o', label=label, color=color)
-
-        plt.axhline(initial_width, color='r', linestyle='--', label="Initial width (eV)")
-        plt.xlabel("Interaction length $L_{int}$ (m)")
-        plt.ylabel("Width (eV)")
-        plt.title("Final Width vs Interaction Length for Different Losses")
-        plt.grid(True)
-        plt.legend()
-        plt.tight_layout()
-        plt.show()
-
-
-# %% L vs width log:
-L_num = 11  # Number of interaction lengths to test
-N = 2**9
-
-L_int_vec = np.logspace(np.log10(0.1), np.log10(15), L_num)  # m
-widths_L = [[] for _ in range(3)]
-loss_values = [0, 30, 100]
-
-# Prepare data for saving
-results = []
-
-for i, gamma_db_per_cm in enumerate(loss_values):
-    for L_int_test in tqdm(L_int_vec, desc=f"Scanning L_int (Loss={gamma_db_per_cm} dB/cm)", position=0):
-        width = final_state_probability_density_loss(N, L_int_test, sigmaE, v0, omega0, gamma_db_per_cm)[3]
-        widths_L[i].append(width)  # Store final width in eV
-        results.append({
-            "L_int_m": L_int_test,
-            "gamma_db_per_cm": gamma_db_per_cm,
-            "width": width
-        })
-
-# Save results to CSV with a descriptive name
-output_file = "tem_energy_width_vs_length_vs_loss.csv"
-if not os.path.exists(output_file):
-    with open(output_file, mode="w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["L_int_m", "gamma_db_per_cm", "width"])
-        writer.writeheader()
-        writer.writerows(results)
-else:
-    # Append only new data (optional: skip if not needed)
-    with open(output_file, mode="a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["L_int_m", "gamma_db_per_cm", "width"])
-        writer.writerows(results)
-
-plt.figure()
-# %% plots
-
-# Load widths_L from CSV file
-df = pd.read_csv("tem_energy_width_vs_length_vs_loss.csv")
-widths_L_total = []
-loss_values = [0, 30, 100]
-for gamma_db_per_cm in loss_values:
-    mask = df["gamma_db_per_cm"] == gamma_db_per_cm
-    # Ensure sorting by L_int_m for correct plotting
-    group = df[mask].sort_values("L_int_m")
-    widths_L_total.append(group["width"].to_numpy())
-
-# Calculate L0 for the vertical line (using the same formula as above)
-L0_theory = 1.18 * 4 * E0 * v0 / (omega0 * sigmaE * e)
-
-# Plot vertical line for L0
-
-
 plt.figure(figsize=(8, 5))
-colors = ['b', 'm', 'c']  # Distinct colors for the three loss cases
-labels = [f"Final Width {gamma_db_per_cm} dB/cm" for gamma_db_per_cm in [0, 30, 100]]
-for i, (color, label) in enumerate(zip(colors, labels)):
-    plt.loglog(L_int_vec, widths_L_total[i], ".-", color=color, label=label)
-plt.axhline(initial_width, color='r', linestyle='--', label="Initial width (eV)")
-plt.axvline(L0, color='g', linestyle='--', label=f"L0  = {L0:.4g} m")
-plt.axvline(L0_theory, color='y', linestyle='--', label=f"L0 (theory) = {L0_theory:.4g} m")
-plt.loglog(L_int_vec, 1 / L_int_vec / 5000, ".-", color='orange', label=r"$\propto 1/L_{int}$")
-plt.loglog(L_int_vec, 1 / np.sqrt(L_int_vec) / 100, ".-", color='k', label=r"$\propto 1/\sqrt{L_{int}}$")
-plt.xlabel("Interaction Length $L_{int}$ (m)", fontsize=12)
-plt.ylabel("Final Electron Energy Width (eV)", fontsize=12)
-plt.title("Final Width vs Interaction Length (log-log)", fontsize=14)
-plt.grid(True, which="both", ls="--")
-plt.legend(title="Legend", fontsize=10)
+plt.plot(δE_f_eV, rho_e, label="Final electron distribution ($\\rho_f$)")
+plt.plot(δE_f_eV, rho_e_initial, label="Initial electron distribution ($\\rho_i$)", linestyle="--")
+plt.xlabel("Energy deviation $\\delta E_f$ (eV)")
+plt.ylabel("Probability density")
+plt.title(f"Electron Energy Distributions\nInitial width: {initial_width:.3g} eV, Final width: {final_width_eV:.3g} eV")
+plt.legend()
 plt.tight_layout()
 plt.show()
+
+# Plot photon distribution
+plt.figure(figsize=(8, 5))
+plt.plot(δω, rho_f_p, label="Photon distribution")
+plt.xlabel("Frequency deviation $\\delta\\omega$ (rad/s)")
+plt.ylabel("Probability density")
+plt.title(f"Photon Frequency Distribution\nInitial width: {initial_width:.3g} eV, Final width: {final_width_eV:.3g} eV")
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+
+
+# %%************************************************************TEM setup************************************************************%% # 
+
+# %% TEM setup
+N = 2**10
+v0 = v_rel(80e3)
+E0 = E_rel(v0)
+
+
+sigmaE = 100e-3  # eV
+omega0 = 2 * np.pi * c / λ(0.8)  # central angular frequency (rad/s)
+L_int = 5  # m
+initial_width = sigmaE * 2 * np.sqrt(2 * np.log(2)) 
+gamma_dB_per_cm = 0.1
+L0 = 1.18*4*E0*v0/(sigmaE*omega0)
+
+δE_f_eV, δω, rho_e, rho_e_initial, rho_f_p, final_width_eV, p1,L_eff = final_state_probability_density_loss(N,
+                                                                                                            L_int,
+                                                                                                            sigmaE,
+                                                                                                            v0, omega0,
+                                                                                                            v_g_func(omega0, v0),
+                                                                                                            recoil_func(omega0, v0),
+                                                                                                            gamma_dB_per_cm)
+#%%
+dispersion_plot(
+    omega0,
+    v0,
+    v_g_func,
+    recoil_func,
+    E_rel,
+    k_rel
+)
+plt.figure(figsize=(8, 5))
+plt.plot(δE_f_eV, rho_e, label="Final electron distribution ($\\rho_f$)")
+plt.plot(δE_f_eV, rho_e_initial, label="Initial electron distribution ($\\rho_i$)", linestyle="--")
+plt.xlabel("Energy deviation $\\delta E_f$ (eV)")
+plt.ylabel("Probability density")
+plt.title(f"Electron Energy Distributions\nInitial width: {initial_width:.3g} eV, Final width: {final_width_eV:.3g} eV")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# Plot photon distribution
+plt.figure(figsize=(8, 5))
+plt.plot(δω, rho_f_p, label="Photon distribution")
+plt.xlabel("Frequency deviation $\\delta\\omega$ (rad/s)")
+plt.ylabel("Probability density")
+plt.title(f"Photon Frequency Distribution\nInitial width: {initial_width:.3g} eV, Final width: {final_width_eV:.3g} eV")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+
+
+
 
 # %%
