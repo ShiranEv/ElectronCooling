@@ -1,10 +1,4 @@
 # %%--------------------------------|TO DO's:|--------------------------------%% #
-# * fix relativistic function
-# * find relativistic recoil corrections
-# * create relativistic numerical validation.
-# * create a general relativisitc + loss density caluclation function.
-# * 30dB cm losses simulation
-### Q & A:
 # should q0 be an input to the density function?
 # %%=================================|SETUP:|===================================%% #
 # %% import 
@@ -71,31 +65,31 @@ def Δk(δE_f, E0, δω, omega0, k):
 #  photon disperssion coefficients functions:
 def q(δω,q0,vg,recoil):
     return q0 + (δω / vg) + 0.5 * recoil * δω**2
-def q0_func(omega0,v0,E_func,k_func):
-    E0 = E_func(v0)                                 # central electron energy (J)
-    k0 = k_func(E0)                                 # central electron wavenumber (rad/m)
+def q0_func(omega0,v0):
+    E0 = E_rel(v0)                                 # central electron energy (J)
+    k0 = k_rel(E0)                                 # central electron wavenumber (rad/m)
     gamma  = np.sqrt(1/(1 - (v0/c)**2))
     epsilon = hbar*omega0/E0
     zeta = gamma/(gamma+1)
     sigma = -1/(gamma + 1)**2
     return k0*(zeta*epsilon + sigma*epsilon**2)
-def v_g_func(omega0,v0,E_func,k_func):
-    E0 = E_func(v0)                                 # central electron energy (J)
-    k0 = k_func(E0)                                 # central electron wavenumber (rad/m)
+def v_g_func(omega0,v0):
+    E0 = E_rel(v0)                                 # central electron energy (J)
+    k0 = k_rel(E0)                                 # central electron wavenumber (rad/m)
     gamma  = np.sqrt(1/(1 - (v0/c)**2))
     zeta = gamma/(gamma+1)
     return E0/(k0*hbar) *(1/zeta)
-def recoil_func(omega0,v0,E_func,k_func):
-    E0 = E_func(v0)                                 # central electron energy (J)
-    k0 = k_func(E0)                                 # central electron wavenumber (rad/m)
+def recoil_func(omega0,v0):
+    E0 = E_rel(v0)                                 # central electron energy (J)
+    k0 = k_rel(E0)                                 # central electron wavenumber (rad/m)
     gamma  = np.sqrt(1/(1 - (v0/c)**2))
     sigma = -1/(gamma + 1)**2
     return  k0*hbar**2 *sigma/E0**2
-def q0_CLASSICAL(omega0, v0, E_function, k_function):
+def q0_CLASSICAL(omega0, v0):
     return omega0/v0 + 1/(2*k(E(v0))*(v0)**2)
-def v_g_CLASSICAL(omega0, v0, E_function, k_function):
+def v_g_CLASSICAL(omega0, v0):
     return v0
-def recoil_CLASSICAL(omega0, v0, E_function, k_function):
+def recoil_CLASSICAL(omega0, v0):
     return -1/((k(E(v0))*v0**2))
 # numerical functions:
 def nyquist_rate(v0,L_int,energy_span):
@@ -104,72 +98,60 @@ def nyquist_rate(v0,L_int,energy_span):
     k0 = k_rel(E0)
     return np.pi*E0**2 *(gamma+1)**2/(4*L_int*k0*energy_span*hbar)
 # Density matrices
-def final_state_probability_density(N,
-                                    initial_width_eV,
-                                    L_int,
-                                    v_g,
-                                    recoil,
-                                    v0,
-                                    omega0,
-                                    grid_factor
-                                    ):
-    # initial_width is sigma in eV
-    sigmaE = (initial_width_eV * e) # J
-
-    E0 = E_rel(v0)
-    k0 = k_rel(E0); k0_m_hw = k_rel(E0 - hbar * omega0)
-
-    q0 = k0 - k0_m_hw           # phase matching
-    
-
-
+def final_state_probability_density(N, L_int,sigmaE_eV,v0,omega0):
+    grid_factor = 4
+    sigmaE = sigmaE_eV * e  # J
     δω = np.linspace(-grid_factor * sigmaE / hbar, grid_factor * sigmaE / hbar, N)
     dω = δω[1] - δω[0]
-    δE_f = np.linspace(-3*grid_factor * sigmaE, 3*grid_factor * sigmaE, N)       # J
-    dE   = δE_f[1] - δE_f[0]
+    δE_f = np.linspace(-grid_factor * sigmaE, grid_factor * sigmaE, N)  # J
+    dE = δE_f[1] - δE_f[0]
+    #### is this correct?
+    energy_span = max(abs(δE_f))
+    ####
     nyquist = nyquist_rate(v0, L_int, energy_span)
     if dω > nyquist:
         print(f"Warning: δω = {dω:.3e} > Nyquist rate = {nyquist:.3e} (aliasing may occur)")
-    2*grid_factor * sigmaE/N
-    δω_grid, δE_f_grid = np.meshgrid(δω, δE_f, indexing='ij')
-    print(f"dω = {dω}, dE = {dE}")
-    rho_i_2d = (1/np.sqrt(2*np.pi*sigmaE**2)) * np.exp(-(δE_f_grid + hbar*δω_grid)**2/(2*sigmaE**2))
+
+    δω_grid, δE_f_grid = np.meshgrid(δω, δE_f, indexing="ij")
+    rho_i_2d = np.exp(-((δE_f_grid + hbar * δω_grid) ** 2) / (2 * sigmaE**2)) / np.sqrt(2 * np.pi * sigmaE**2)
     i0 = np.argmin(np.abs(δω))
     K = np.zeros_like(δω)
     K[i0] = 1.0 / dω
-    rho_i_1d = np.sum(rho_i_2d * K[:, None], axis=0) * dω   # equals rho_i_2d[i0, :]
-    rho_i_1d /= (np.sum(rho_i_1d) * dE)
+    rho_i_1d = np.sum(rho_i_2d * K[:, None], axis=0) * dω  # equals rho_i_2d[i0, :]
+    rho_i_1d /= np.sum(rho_i_1d) * dE
 
-    Delta_PM = ( k_rel(E0 + δE_f_grid + hbar*δω_grid)
-               - k_rel(E0 + δE_f_grid - hbar*omega0)
-               - (q0 + (δω_grid / v_g) + 0.5 * recoil * δω_grid**2) )
+    k0 = k_func(E0)
+    k0_m_hw = k_rel(E0 - hbar * omega0)
+    q0 = k0 - k0_m_hw  # phase matching
+    vg = v_g_func(omega0, v0)
+    recoil = recoil_func(omega0, v0)
+    
+    Delta_PM = (
+        k_rel(E0 + δE_f_grid + hbar * δω_grid)
+        - k_rel(E0 + δE_f_grid - hbar * omega0)
+        - (q0 + (δω_grid / vg) + 0.5 * recoil * δω_grid**2)
+    )
 
-    kernel = np.sinc(Delta_PM * L_int / (2*np.pi)) 
-    factor = e**2 *hbar * v_rel(E0 + δE_f_grid + hbar*δω_grid)**2 * L_int**2  / (2*eps0*(δω_grid + omega0))
-    U_factor = 1/5.699002052485579e-45
+    kernel = (hbar * k_rel(E0 + δE_f_grid + hbar * δω_grid) / m) * np.sinc(Delta_PM * L_int / (2 * np.pi))
+
+    factor = e**2 * hbar * L_int**2 / (2 * eps0 * (δω_grid + omega0))
+    U_factor = 1 / 4.1383282083233256e-51
+    rho_f_total = factor * U_factor * (rho_i_2d * kernel**2)
+    # rho_f_total =  (rho_i_2d * kernel**2)
 
     # Electron marginal over ω (normalized over J)
-    rho_f = 1*np.sum((U_factor*factor * rho_i_2d * kernel**2), axis=0) * dω 
-    print(np.sum(rho_f * dE))
-    p1 = np.sum(rho_f * dE)
-    rho_f = rho_f + (1 - p1)*rho_i_1d
-    
+    rho_e = np.sum(rho_f_total, axis=0) * dω
+    final_width_eV = compute_FWHM(δE_f, rho_e) / e
+
+    p1 = np.sum(rho_e * dE)
+    rho_e_total =  rho_e / p1 #rho_e + (1 - p1) * rho_i_1d
+    final_width_eV_total = compute_FWHM(δE_f, rho_e_total) / e
+
     # Photon marginal over δE_f (normalized over rad/s)
-    rho_f_p = np.sum((rho_i_2d * kernel**2), axis=1) * dE
-    rho_f_p /= np.sum(rho_f_p * dω)
+    rho_p = np.sum(rho_f_total, axis=1) * dE
+    rho_p /= np.sum(rho_p * dω)
+    return final_width_eV, final_width_eV_total, p1
 
-    # convert to eV:
-    
-    δE_f_eV      = δE_f / e
-    rho_f_per_eV = rho_f / e
-    rho_i_per_eV = rho_i_1d / e
-    
-    dE_eV = δE_f_eV[1] - δE_f_eV[0]
-    rho_i_per_eV /= (np.sum(rho_i_per_eV) * dE_eV)
-    rho_f_per_eV /= (np.sum(rho_f_per_eV) * dE_eV)
-    final_width_eV = compute_FWHM(δE_f, rho_f)/e
-
-    return δE_f_eV, rho_f_per_eV, final_width_eV, rho_i_per_eV, δω, rho_f_p, 
 def final_state_probability_density_lossy(N,
                                         initial_width,
                                         L_int,
