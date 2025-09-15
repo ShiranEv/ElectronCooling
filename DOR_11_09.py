@@ -167,7 +167,7 @@ def final_state_probability_density(N, L_int,sigmaE_eV,v0,omega0,v_g,recoil,gamm
     return δE_f_eV, δω_eV, rho_f_e_eV, rho_i_e_eV, rho_f_p, final_width_eV, p1, L_eff
 
 def final_state_probability_density_loss(N, L_int,sigmaE_eV,v0,omega0,v_g,recoil,gamma_dB_per_cm):
-    grid_factor = 5
+    grid_factor = 4
     
     sigmaE = sigmaE_eV * e 
     energy_span = grid_factor * sigmaE  # J
@@ -204,7 +204,7 @@ def final_state_probability_density_loss(N, L_int,sigmaE_eV,v0,omega0,v_g,recoil
     L_eff = v_g/Gamma if Gamma > 0 else L_int
     # Local u grid for Lorentzian integration (finer and narrower)
     U = min(4.0 * Gamma, omega_span)
-    du_target = Gamma / 64.0  # Finer grid
+    du_target = Gamma / 32.0  # Finer grid
     du = du_target if du_target > 0 else dω
     if du <= 0:
         du = dω
@@ -221,19 +221,19 @@ def final_state_probability_density_loss(N, L_int,sigmaE_eV,v0,omega0,v_g,recoil
         ωp = ω + u  # (M_u,)
         # Initial joint density ρ_i(E_f + ħω, E_f + ħω)
         rho_i_slice = (1 / np.sqrt(2 * np.pi * sigmaE**2)) * np.exp(
-            -((δE_col + hbar * ω) ** 2) / (2 * sigmaE**2)
+            -((δE_col + hbar * ωp[:, None]) ** 2) / (2 * sigmaE**2)
         )  # (1, N)
 
         # Phase mismatch Delta_PM (broadcasts to (M_u, N))
         Delta_PM = (
-            k_rel(E0 + δE_col + hbar * ω)
+            k_rel(E0 + δE_col + hbar * ωp[:, None])
             - k_rel(E0 + δE_col - hbar * omega0)
             - (q0 + (ωp[:, None] / v_g) + 0.5 * recoil * (ωp[:, None] ** 2))
         )
 
-        kernel = (hbar * k_rel(E0 + δE_col + hbar * ω) / m) * np.sinc(Delta_PM * L_int / (2 * np.pi))
+        kernel = (hbar * k_rel(E0 + δE_col + hbar * ωp[:, None]) / m) * np.sinc(Delta_PM * L_int / (2 * np.pi))
 
-        factor = e**2 * hbar * L_int**2 / (2 * eps0 * (ω + omega0))
+        factor = e**2 * hbar * L_int**2 / (2 * eps0 * (ωp[:, None] + omega0))
         U_factor = 1 / 4.1383282083233256e-51
 
         # Lorentzian L_Γ(u) = L_Γ(ω' - ω)
@@ -518,7 +518,7 @@ def dispersion_plot(omega0, v0,v_g_function,recoil_function, E_function, k_funct
     
 # %%************************************************************SEM setup************************************************************%% # 
 # %% SEM setup 
-N =2**9
+N =2**10
 v0 = 0.1 * c  # electron velocity
 E0 = E_rel(v0)
 lambda0 = 500e-9
@@ -556,7 +556,7 @@ plt.show()
 # %%************************************************************TEM setup************************************************************%% # 
 
 # %% TEM setup
-N = 2**10
+N = 2**12
 v0 = v_rel(80e3)
 E0 = E_rel(v0)
 
@@ -565,7 +565,8 @@ sigmaE = 100e-3  # eV
 omega0 = 2 * np.pi * c / λ(0.8)  # central angular frequency (rad/s)
 L_int = 5  # m
 initial_width = sigmaE * 2 * np.sqrt(2 * np.log(2)) 
-gamma_dB_per_cm = 0.1
+gamma_dB_per_cm = 10
+
 L0 = 1.18*4*E0*v0/(sigmaE*omega0)
 
 δE_f_eV, δω, rho_e, rho_e_initial, rho_f_p, final_width_eV, p1,L_eff = final_state_probability_density_loss(N,
@@ -611,3 +612,34 @@ plt.show()
 
 
 # %%
+L_num = 21  # Number of interaction lengths to test
+N = 2**12
+L0 = 1.18 *  4  * (E0*v0 / (sigmaE*omega0))   # optimal interaction length
+print(f"L0 = {L0:.4f} m")
+L_int_vec = np.logspace(np.log10(0.0001), np.log10(0.1), L_num)  # m
+loss_vec = [0, 30, 100, 200, 300, 400]  # dB/cm
+widths_L = [[] for _ in range(len(loss_vec))]
+for i, gamma_db_per_cm in enumerate(loss_vec):
+    for L_int_test in tqdm(L_int_vec, desc="Scanning L_int", position=0):
+        width, width_tot, p = final_state_probability_density_loss(N, L_int_test, gamma_db_per_cm)
+        widths_L[i].append(width)  # Store final width in eV
+
+
+
+# %%
+plt.figure()
+for i, gamma_db_per_cm in enumerate(loss_vec):
+    # plt.plot(L_int_vec, np.array(widths_L[i]), ".-", label=f"Final Width {gamma_db_per_cm} dB/cm")
+    plt.loglog(L_int_vec[:-4], np.array(widths_L[i])[:-4], ".-", label=f"Final Width {gamma_db_per_cm} dB/cm")
+
+
+# plt.hlines(initial_width, L_int_vec[0], L_int_vec[-1], color="r", linestyle="--", label="Initial Width")
+plt.loglog(L_int_vec[:-4], 1 / L_int_vec[:-4] / 5000, ".-", label="1/L_int")
+# plt.vlines(L0, 0, max(widths_L) * 1.1, color="g", linestyle="--", label="L0")
+plt.loglog(L_int_vec[:-4], 1 / np.sqrt(L_int_vec)[:-4] / 100, ".-", label="1/sqrt(L_int)")
+
+# plt.ylim(0, initial_width * 1.1)
+plt.ylabel("Final Width (eV)")
+plt.xlabel("Interaction Length [m]")
+plt.legend()
+plt.show()
