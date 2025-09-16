@@ -180,7 +180,7 @@ def final_state_probability_density_loss(N, L_int,sigmaE_eV,v0,omega0,v_g,recoil
         kernel = (hbar * k_rel(E0 + δE_col + hbar * ω) / m) * np.sinc(Delta_PM * L_int / (2 * np.pi))
 
         factor = e**2 * hbar * L_int**2 / (2 * eps0 * (ωp[:, None] + omega0))
-        U_factor = 1 / 4.1383282083233256e-51
+        U_factor = 1 # / 4.1383282083233256e-51
 
         # Lorentzian L_Γ(u) = L_Γ(ω' - ω)
         lorentz = (1 / np.pi) * (Gamma / 2.0) / ((u_col**2) + (Gamma / 2.0) ** 2)  # (M_u, 1)
@@ -201,7 +201,7 @@ def final_state_probability_density_loss(N, L_int,sigmaE_eV,v0,omega0,v_g,recoil
     p1 = np.sum(rho_f_e * dE)
     
     # Normalize electron marginal
-    rho_f_e /= np.sum(rho_f_e * dE) if np.sum(rho_f_e * dE) != 0 else 1.0
+    rho_f_e /= np.sum(rho_f_e * dE) # if np.sum(rho_f_e * dE) != 0 else 1.0
     final_width_eV = compute_FWHM(δE_f, rho_f_e) / e
     # Initial 1D distribution
     rho_i_e = (1 / np.sqrt(2 * np.pi * sigmaE**2)) * np.exp(-((δE_f) ** 2) / (2 * sigmaE**2))
@@ -234,21 +234,20 @@ def nyquist_rate(v0, L_int, energy_span):
 sigmaE = 100e-3 *e # eV    (monochromated TEM energy spread)
 E0 = 80e3  *e                   # eV    (ELECTRON ENERGY 80 keV)
 v0 = v_rel(E0/e )    
-E0 = E_rel(v0)         
 # Photon & Waveguide :
 λ_TEM = λ(0.8)                   # m     (wavelength) should be 0.8 - 1.2 eV
 L_int = 8                   # interaction length (m)
 omega0  = 2 * np.pi * c / λ_TEM               # central angular frequency (rad/s)
 k_func = k_rel
-initial_width = sigmaE * 2 * np.sqrt(2 * np.log(2)) / e
-print(f"Initial width (FWHM): {initial_width:.6f} eV")
 
-N = 2**12
+
+N = 2**13
 recoil = recoil_func(v0, E0, k_func(E0))
     
 
-# v0 = 0.1 * c  # electron velocity
-
+v0 = 0.1 * c  # electron velocity
+E0 = E_rel(v0)         
+# 
 k_func = k_rel
 recoil = recoil_func(v0, E0, k_func(E0))
 # else:
@@ -256,18 +255,23 @@ recoil = recoil_func(v0, E0, k_func(E0))
 #     k_func = k
 #     recoil = recoil_CLASSICAL(v0)
 
-# vg = 0.1 * c  # photon group velocity
+vg = 0.1 * c  # photon group velocity
 lambda0 = 500e-9
-# omega0 = 2 * np.pi * c / lambda0  # central angular frequency (rad/s)
-vg = v_g_func(omega0,v0)  # photon group velocity
+omega0 = 2 * np.pi * c / lambda0  # central angular frequency (rad/s)
+# vg = v_g_func(omega0,v0)  # photon group velocity
 print(f"v0/c = {v0/c:.4f}, vg/c = {vg/c:.4f}")
 
-# sigmaE = 0.1 * hbar * omega0
+sigmaE = 0.1 * hbar * omega0
+initial_width = sigmaE * 2 * np.sqrt(2 * np.log(2)) / e
+print(f"Initial width (FWHM): {initial_width:.6f} eV")
+L0 = 0.8859/(2*np.sqrt(2*np.log(2))) * 4 * E0 * v0 / (sigmaE * (omega0 - 4 * sigmaE / hbar))  # optimal interaction length
+print(f"L0 = {L0:.4f} m")
+L_int = 0.0003                   # interaction length (m)
 
 # def final_state_probability_density(N, L_int):
-grid_factor = 4
+grid_factor = 7
 
-δω = np.linspace(-grid_factor * sigmaE / hbar, grid_factor * sigmaE / hbar, N)
+δω = np.linspace(-2 * sigmaE / hbar, 2 * sigmaE / hbar, N)
 dω = δω[1] - δω[0]
 δE_f = np.linspace(-grid_factor * sigmaE, grid_factor * sigmaE, N)  # J
 dE = δE_f[1] - δE_f[0]
@@ -445,11 +449,10 @@ plt.show()
 # %%
 L_num = 21  # Number of interaction lengths to test
 N = 2**12
-L0 = 1.18 * 4 * E0 * v0 / (sigmaE * omega0)  # optimal interaction length
-print(f"L0 = {L0:.4f} m")
+
 
 L_int_vec = np.logspace(np.log10(0.1), np.log10(8), L_num)  # m
-loss_vec = [0 , 0.5,1,2,3 ,5]  # dB/cm
+loss_vec = [0 , 0.5,1,2]  # dB/cm
 L_eff = 1 / (np.log(10) / 20 * np.array(loss_vec) * 100)  # m
 print(L_eff)
 
@@ -462,21 +465,23 @@ for i, gamma_db_per_cm in enumerate(loss_vec):
 
 # %%
 plt.figure()
-for i, gamma_db_per_cm in enumerate(loss_vec):
+for i, gamma_db_per_cm in enumerate([0 , 0.5,1,2]):
     # plt.plot(L_int_vec, np.array(widths_L[i]), ".-", label=f"Final Width {gamma_db_per_cm} dB/cm")
-    plt.loglog(L_int_vec[:-7], np.array(widths_L[i])[:-7], ".-", label=f"Final Width {gamma_db_per_cm} dB/cm")
+    plt.loglog(L_int_vec, np.array(widths_L[i]), ".-", label=f"Final Width {gamma_db_per_cm} dB/cm")
 
-
-# plt.hlines(initial_width, L_int_vec[0], L_int_vec[-1], color="r", linestyle="--", label="Initial Width")
+[0, 10, 30, 100]
+plt.hlines(initial_width, L_int_vec[0], L_int_vec[-1], color="r", linestyle="--", label="Initial Width")
 # plt.loglog(L_int_vec[:-4], 1 / L_int_vec[:-4] / 5000, ".-", label="1/L_int")
-# plt.vlines(L0, 0, max(widths_L) * 1.1, color="g", linestyle="--", label="L0")
+L0 = 0.8859/(2*np.sqrt(2*np.log(2))) * 4 * E0 * v0 / (sigmaE * (omega0 - 4 * sigmaE / hbar))  # optimal interaction length
+print(f"L0 = {L0:.4f} m")
+plt.vlines(L0, 0, max(widths_L[0]) * 1.1, color="g", linestyle="--", label="L0")
 # plt.loglog(L_int_vec[:-4], 1 / np.sqrt(L_int_vec)[:-4] / 100, ".-", label="1/sqrt(L_int)")
 
 # plt.ylim(0, initial_width * 1.1)
 plt.ylabel("Final Width (eV)")
 plt.xlabel("Interaction Length [m]")
 plt.legend()
-plt.savefig("shiran_10_9_width_vs_L_int.png", dpi=300)
+plt.savefig("shiran_10_9_width_vs_L_int.svg", dpi=300)
 # %%
 plt.figure()
 for i, gamma_db_per_cm in enumerate([0, 30, 100]):
@@ -494,3 +499,18 @@ for i in range(3):
     )
 
 # %%
+alpha = 7
+x = np.linspace(-np.pi, np.pi, 100000)
+y = np.sinc(alpha * x)**2
+plt.plot(x,y,'.')
+half = np.max(y) / 2.0
+print(half)
+above = np.where(y >= half)[0]
+print(above)
+comp = x[above[-1]] - x[above[0]]
+FWHH = 0.8859 / alpha
+print(f"FWHM = {comp}, expected {FWHH}")
+
+integrand = np.sinc(alpha * x * dw)  **2 * 
+
+plt.plot(x,y,'.')
