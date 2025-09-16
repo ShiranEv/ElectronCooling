@@ -12,6 +12,7 @@ from tabulate import tabulate
 from scipy.constants import c, m_e as m, hbar, e, epsilon_0 as eps0
 
 
+
 # %% functions :
 # Definitions
 def k(E):
@@ -428,6 +429,15 @@ for L_int_test in tqdm(L_int_vec, desc="Scanning L_int", position=0):
     widths_L.append(width)  # Store final width in eV
     widths_L_total.append(width_tot)  # Store total final width in eV
     probability.append(p)  # Store final probability
+
+    # Save widths_L to a file
+    df = pd.DataFrame({
+        "L_int": L_int_vec,
+        "widths_L": widths_L,
+        "widths_L_total": widths_L_total,
+        "probability": probability
+    })
+    df.to_csv("widths_vs_L_int.csv", index=False)
 
 # %%
 plt.figure()
