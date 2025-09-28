@@ -172,7 +172,7 @@ def final_state_probability_density(N, L_int,sigmaE_eV,v0,omega0,v_g,recoil,gamm
     L_eff = v_g/Gamma if Gamma > 0 else L_int
     return δE_f_eV, δω_eV, rho_f_e_eV, rho_i_e_eV, rho_f_p, final_width_eV, p1, L_eff
 def final_state_probability_density_loss(N, L_int,sigmaE_eV,v0,omega0,v_g,recoil,gamma_dB_per_cm):
-    grid_factor = 5
+    grid_factor = 4
     
     sigmaE = sigmaE_eV * e 
     energy_span = grid_factor * sigmaE  # J
@@ -629,21 +629,19 @@ def dispersion_plot(omega0, v0,v_g_function,recoil_function, E_function, k_funct
     plt.show()  
 # %%************************************************************SLOW setup************************************************************%% # 
 # %% SLOW setup 
-N =2**10
-v0 = 0.1 * c  # electron velocity
-E0 = E_rel(v0)
+N =2**12
+E0 = 300 * e
+v0 = v_rel(E0) 
 lambda0 = 500e-9
 omega0 = 2 * np.pi * c / lambda0  # central angular frequency (rad/s)
-L_int = 0.01
-sigmaE = 0.1 * hbar * omega0 / e
+L_int = 0.0001
+sigmaE = 0.2
 L0 = 1.18 *  4  * (E0*v0 / (sigmaE*e*omega0))   # optimal interaction length
 initial_width = sigmaE * 2 * np.sqrt(2 * np.log(2)) 
-gamma_dB_per_cm = 10
 vg = v_g_func(omega0, v0)
 recoil = recoil_func(omega0, v0)
-print ("gamma value:", γ(gamma_dB_per_cm, vg))
 δE_f_eV, δω, rho_e, rho_e_initial, rho_f_p, final_width_eV, p1,l_eff = final_state_probability_density(N, L_int, sigmaE, v0, omega0,
-                                                                   vg, recoil, gamma_dB_per_cm)
+                                                                   vg, recoil)
 
 plt.figure(figsize=(8, 5))
 plt.plot(δE_f_eV, rho_e, label="Final electron distribution ($\\rho_f$)")
@@ -664,9 +662,40 @@ plt.title(f"Photon Frequency Distribution\nInitial width: {initial_width:.3g} eV
 plt.legend()
 plt.tight_layout()
 plt.show()
+# %% 1D simulation: width vs L
+L_num = 21
+L_int_vec = np.logspace(np.log10(0.1 * L0), np.log10(10* L0), L_num)  # m
+widths_vs_L_slow = []
+for i, L_int_test in enumerate(tqdm(L_int_vec, desc="Scanning L_int (TEM)", position=0)):
+    width = float(final_state_probability_density(
+            N, L_int_test, sigmaE, v0, omega0,
+            vg, recoil)[5])
+    widths_vs_L_slow.append(width)
+# Save to CSV
+ACCUM_CSV = "widths_vs_L_v0="+str(v0)+".csv"
+df_tem = pd.DataFrame({
+    "L_int_m": L_int_vec,
+    "width": widths_vs_L_slow
+})
+df_tem.to_csv(ACCUM_CSV, index=False)
+
+L_threshold = L_int_vec[np.argmin(np.abs(widths_vs_L_slow - initial_width))]
+
+plt.plot(L_int_vec, widths_vs_L_slow, marker='.', linestyle='-')
+plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
+plt.axvline(L_threshold, color="tab:blue", linestyle="--", label=r"$L_\mathrm{the}$")
+plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")
+plt.xlabel("Interaction length $L_{int}$ (m)")
+plt.ylabel("Final width (same units as CSV)")
+plt.yscale("log")
+plt.xscale("log")
+plt.title(r"Width vs $L_{int}$ for $v_0 = v_g$ at different losses")
+plt.legend()
+plt.tight_layout()
+plt.show()
 
 
-
+# %% 
 # Load data for 0, 10, 30, 100 dB/cm
 df_0db = pd.read_csv("widths_2D_v0_L_SEM_0_log_dB.csv")
 df_10db = pd.read_csv("widths_2D_v0_L_SEM_10_log_dB.csv")
