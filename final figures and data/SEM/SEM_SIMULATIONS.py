@@ -671,8 +671,8 @@ L_int_vec = np.linspace(0.00005, 0.15, L_num)  # m
 v0_num = 21
 v0_vec = np.linspace(0.999, 1.001, v0_num) * vg  # ±1%
 widths_2D_tem = np.zeros((len(L_int_vec), len(v0_vec)))
-gamma_dB_per_cm = 10
-N = 2**8
+gamma_dB_per_cm = 0
+N = 2**9
 L0 = 2 *  4  * (E0*v0 / (sigmaE*e*omega0))   # optimal interaction length
 vg = v_g_func(omega0, v0)
 recoil = recoil_func(omega0, v0)
@@ -686,11 +686,11 @@ for i, L_int_test in enumerate(tqdm(L_int_vec, desc="Scanning L_int (TEM)", posi
         widths_2D_tem[i, j] = width
         _rows_tem.append((float(L_int_test), float(v0_test), width))
 # Save to CSV
-ACCUM_CSV_SEM = "widths_2D_v0_L_SEM_10_lin_dB.csv"
+ACCUM_CSV_SEM = "widths_2D_v0_L_SEM_0_lin_dB.csv"
 df_tem = pd.DataFrame(_rows_tem, columns=["L_int_m", "v_0_m_per_s", "width"])
 df_tem.to_csv(ACCUM_CSV_SEM, index=False)
 # Load
-df_loaded = pd.read_csv("widths_2D_v0_L_SEM_10_lin_dB.csv")
+df_loaded = pd.read_csv("widths_2D_v0_L_SEM_0_lin_dB.csv")
 
 # Round to align keys (same rounding as vectors)
 L_int_vec_rounded = np.round(L_int_vec, 8)

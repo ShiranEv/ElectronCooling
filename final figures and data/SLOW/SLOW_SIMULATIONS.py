@@ -627,8 +627,8 @@ def dispersion_plot(omega0, v0,v_g_function,recoil_function, E_function, k_funct
     plt.legend()
     plt.grid(True)
     plt.show()  
-# %%************************************************************SEM setup************************************************************%% # 
-# %% SEM setup 
+# %%************************************************************SLOW setup************************************************************%% # 
+# %% SLOW setup 
 N =2**10
 v0 = 0.1 * c  # electron velocity
 E0 = E_rel(v0)
@@ -770,6 +770,32 @@ cbar = fig.colorbar(im, ax=axes[3], label="log(width / initial_width)", fraction
 fig.subplots_adjust(left=0.05, right=0.90, wspace=0.05)
 plt.show()
 
+# %% Width vs v0 
+N = 2**10
+v0_num = 41
+vg = v_g_func(omega0, v0)
+v0_vec = np.linspace(0.9999, 1.0001, v0_num) * vg  # ±1%
+gamma_dB_per_cm = 0 
+widths_v0_tem = []
+recoil = recoil_func(omega0, v0)
+for v0_test in v0_vec:
+    width = final_state_probability_density(
+        N, L_int, sigmaE, v0_test, omega0,
+        vg, recoil, gamma_dB_per_cm
+    )[5]
+    widths_v0_tem.append(width)
+
+plt.figure(figsize=(8, 5))
+plt.plot(v0_vec / c, widths_v0_tem, ".-", label="Final width")
+plt.axhline(initial_width, color="tab:orange", linestyle="--", label="Initial width")
+plt.axvline(vg / c, color="tab:green", linestyle="--", label="$v_0 = v_g$")
+plt.xlabel("Electron velocity $v_0$ (c)")
+plt.ylabel("Final Width (eV)")
+plt.title(f"Final Width vs. Electron Velocity (TEM setup)\n$L_0={L0:.3g}$ m")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
 # %% 1D GRAPH: width vs L for different losses
 # Load data for 0, 10, 30, 100 dB/cm
 df_0db = pd.read_csv("widths_2D_v0_L_SEM_0_log_dB.csv")
