@@ -666,9 +666,9 @@ plt.tight_layout()
 plt.show()
 
 # %% 2D simulation: v0 vs L for different losses:
-L_num = 21
-L_int_vec = np.linspace(0.00005, 0.15, L_num)  # m
-v0_num = 21
+L_num = 41
+L_int_vec = np.linspace(0.2 * L0, 20 * L0, L_num) 
+v0_num = 41
 v0_vec = np.linspace(0.999, 1.001, v0_num) * vg  # ±1%
 widths_2D_tem = np.zeros((len(L_int_vec), len(v0_vec)))
 gamma_dB_per_cm = 0
@@ -678,8 +678,9 @@ vg = v_g_func(omega0, v0)
 recoil = recoil_func(omega0, v0)
 _rows_tem = []
 for i, L_int_test in enumerate(tqdm(L_int_vec, desc="Scanning L_int (TEM)", position=0)):
+    print(f"Scanning L_int = {L_int_test:.5f} m")
     for j, v0_test in enumerate(tqdm(v0_vec, desc=f"Scanning v_0 for L_int={L_int_test:.5f}", leave=False, position=1)):
-        width = float(final_state_probability_density_loss(
+        width = float(final_state_probability_density(
             N, L_int_test, sigmaE, v0_test, omega0,
             vg, recoil, gamma_dB_per_cm
         )[5])
@@ -689,15 +690,18 @@ for i, L_int_test in enumerate(tqdm(L_int_vec, desc="Scanning L_int (TEM)", posi
 ACCUM_CSV_SEM = "widths_2D_v0_L_SEM_0_lin_dB.csv"
 df_tem = pd.DataFrame(_rows_tem, columns=["L_int_m", "v_0_m_per_s", "width"])
 df_tem.to_csv(ACCUM_CSV_SEM, index=False)
+#%%
 # Load
 df_loaded = pd.read_csv("widths_2D_v0_L_SEM_0_lin_dB.csv")
 
 # Round to align keys (same rounding as vectors)
-L_int_vec_rounded = np.round(L_int_vec, 8)
-v0_vec_rounded    = np.round(v0_vec,    8)
-
-df_loaded["L_int_m"]      = np.round(df_loaded["L_int_m"],      8)
-df_loaded["v_0_m_per_s"]  = np.round(df_loaded["v_0_m_per_s"],  8)
+L_int_vec_rounded = np.sort(df_loaded["L_int_m"].unique())
+v0_vec_rounded = np.sort(df_loaded["v_0_m_per_s"].unique())
+# Print vector of differences L_int_vec_rounded[i+1] - L_int_vec_rounded[i]
+L_diffs = np.diff(L_int_vec_rounded)
+print("L_int_vec_rounded differences:", L_diffs)
+# df_loaded["L_int_m"]      = np.round(df_loaded["L_int_m"],      8)
+# df_loaded["v_0_m_per_s"]  = np.round(df_loaded["v_0_m_per_s"],  8)
 
 # Keep only expected coordinates
 df_loaded = df_loaded[df_loaded["L_int_m"].isin(L_int_vec_rounded)]
@@ -755,7 +759,7 @@ plt.imshow(
 )
 cbar = plt.colorbar(label="log(final/initial width)")
 plt.axhline(L0, color="tab:green", linestyle="--", label=r"$L_0$")
-plt.axhline(L_threshold, color="tab:blue", linestyle="--", label=r"$L_\mathrm{the}$")
+# plt.axhline(L_threshold, color="tab:blue", linestyle="--", label=r"$L_\mathrm{the}$")
 plt.axvline(vg / c, color="tab:red", linestyle="--", label=r"$v_0 = v_g$")
 plt.xlabel("Electron velocity $v_0$ (c)")
 plt.ylabel("Interaction length $L_{int}$ (m)")
