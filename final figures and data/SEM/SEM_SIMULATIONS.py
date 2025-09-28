@@ -666,10 +666,19 @@ plt.tight_layout()
 plt.show()
 
 # %% 2D simulation: v0 vs L for different losses:
-L_num = 41
+L_num = 61
 L_int_vec = np.linspace(0.2 * L0, 20 * L0, L_num) 
 v0_num = 41
-v0_vec = np.linspace(0.999, 1.001, v0_num) * vg  # ±1%
+# v0_vec = np.linspace(0.999, 1.001, v0_num) * vg  # ±1%
+# Ensure v0_vec and L_int_vec have the same length (v0_num)
+v0_vec = np.unique(
+    np.concatenate([
+        np.linspace(0.999, 1.001, v0_num) * v0,          # ±1%
+        np.linspace(0.9999, 1.0001, v0_num // 2 + 1) * v0,    # ±0.1%
+        [v0],                                             # exact center
+    ])
+)
+
 widths_2D_tem = np.zeros((len(L_int_vec), len(v0_vec)))
 gamma_dB_per_cm = 0
 N = 2**9
@@ -690,6 +699,8 @@ for i, L_int_test in enumerate(tqdm(L_int_vec, desc="Scanning L_int (TEM)", posi
 ACCUM_CSV_SEM = "widths_2D_v0_L_SEM_0_lin_dB.csv"
 df_tem = pd.DataFrame(_rows_tem, columns=["L_int_m", "v_0_m_per_s", "width"])
 df_tem.to_csv(ACCUM_CSV_SEM, index=False)
+# L_threshold = L_int_vec[np.argmin(np.abs(widths_2D_tem[:, int(np.floor(v0_num/2))] - initial_width))]
+
 #%%
 # Load
 df_loaded = pd.read_csv("widths_2D_v0_L_SEM_0_lin_dB.csv")
