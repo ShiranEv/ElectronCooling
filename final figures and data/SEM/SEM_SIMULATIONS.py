@@ -172,7 +172,7 @@ def final_state_probability_density(N, L_int,sigmaE_eV,v0,omega0,v_g,recoil,gamm
     L_eff = v_g/Gamma if Gamma > 0 else L_int
     return δE_f_eV, δω_eV, rho_f_e_eV, rho_i_e_eV, rho_f_p, final_width_eV, p1, L_eff
 def final_state_probability_density_loss(N, L_int,sigmaE_eV,v0,omega0,v_g,recoil,gamma_dB_per_cm):
-    grid_factor = 5
+    grid_factor = 4
     
     sigmaE = sigmaE_eV * e 
     energy_span = grid_factor * sigmaE  # J
@@ -638,11 +638,11 @@ L_int = 0.01
 sigmaE = 0.1 * hbar * omega0 / e
 L0 = 1.18 *  4  * (E0*v0 / (sigmaE*e*omega0))   # optimal interaction length
 initial_width = sigmaE * 2 * np.sqrt(2 * np.log(2)) 
-gamma_dB_per_cm = 10
+gamma_dB_per_cm = 0
 vg = v_g_func(omega0, v0)
 recoil = recoil_func(omega0, v0)
 print ("gamma value:", γ(gamma_dB_per_cm, vg))
-δE_f_eV, δω, rho_e, rho_e_initial, rho_f_p, final_width_eV, p1,l_eff = final_state_probability_density(N, L_int, sigmaE, v0, omega0,
+δE_f_eV, δω, rho_e, rho_e_initial, rho_f_p, final_width_eV, p1,l_eff = final_state_probability_density_loss(N, L_int, sigmaE, v0, omega0,
                                                                    vg, recoil, gamma_dB_per_cm)
 
 plt.figure(figsize=(8, 5))
@@ -908,18 +908,24 @@ plt.tight_layout()
 plt.show()
 # %% 1D GRAPH: width vs L for different initial widths
 # 1D GRAPH: width vs L for different initial widths (sigmaE)
-sigmaE_values = [sigmaE, 0.5 * sigmaE, 1.5 * sigmaE]
-sigmaE_labels = [r"$\sigma_E$", r"$0.5\,\sigma_E$", r"$1.5\,\sigma_E$"]
-colors_sigmaE = ["tab:blue", "tab:orange", "tab:green"]
-N = 2**9
+# Import L_int_vec_rounded from the CSV file to use as the L vector for the simulation
+df_loaded = pd.read_csv("widths_2D_v0_L_SEM_0_log_dB.csv")
+L_int_vec_rounded = np.sort(df_loaded["L_int_m"].unique())
+# Cut L_int_vec_rounded for only values of L < 0.02
+L_int_vec_rounded = L_int_vec_rounded[L_int_vec_rounded < 0.02]
+sigmaE_values = [0.1 * sigmaE, sigmaE, 0.5 * sigmaE, 1.5 * sigmaE, 2 * sigmaE]
+sigmaE_labels = [r"$0.1\,\sigma_E$", r"$\sigma_E$", r"$0.5\,\sigma_E$", r"$1.5\,\sigma_E$", r"$2\,\sigma_E$"]
+colors_sigmaE = ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple"]
+N = 2**12
 results = []
 
-plt.figure(figsize=(8, 5))
+widths_vs_L_all = []
+
 for sigmaE_val, label, color in zip(sigmaE_values, sigmaE_labels, colors_sigmaE):
     widths_vs_L = []
     # Add tqdm progress bar for L_int_test loop
     for L_int_test in tqdm(L_int_vec_rounded, desc=f"σE={label}", leave=False):
-        width = float(final_state_probability_density_loss(
+        width = float(final_state_probability_density(
             N, L_int_test, sigmaE_val, vg, omega0,
             vg, recoil, gamma_dB_per_cm
         )[5])
@@ -930,7 +936,13 @@ for sigmaE_val, label, color in zip(sigmaE_values, sigmaE_labels, colors_sigmaE)
             "width": width,
             "label": label
         })
-    plt.plot(L_int_vec_rounded, widths_vs_L, marker='.', linestyle='-', label=label, color=color)
+    widths_vs_L_all.append((widths_vs_L, sigmaE_val, color))
+
+plt.figure(figsize=(8, 5))
+for widths_vs_L, sigmaE_val, color in widths_vs_L_all:
+    # Only plot up to L_int = 0.05
+    mask = L_int_vec_rounded <= 0.03
+    plt.plot(L_int_vec_rounded[mask], np.array(widths_vs_L)[mask], marker='.', linestyle='-', label=sigmaE_val, color=color)
 
 # plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
 plt.xlabel("Interaction length $L_{int}$ (m)")
@@ -958,7 +970,7 @@ for omega0_val, label, color in zip(omega0_values, omega0_labels, colors_omega0)
     widths_vs_L = []
     # Add tqdm progress bar for L_int_test loop
     for L_int_test in tqdm(L_int_vec_rounded, desc=f"ω0={label}", leave=False):
-        width = float(final_state_probability_density_loss(
+        width = float(final_state_probability_density(
             N, L_int_test, sigmaE, vg, omega0_val,
             vg, recoil, gamma_dB_per_cm
         )[5])
@@ -984,3 +996,37 @@ plt.show()
 # Save results to CSV
 df_omega0 = pd.DataFrame(results)
 df_omega0.to_csv("width_vs_L_for_different_omega0.csv", index=False)
+# %% function check:
+# Compare width vs L_int for two cases: both lossless (0 dB/cm)
+
+L_int_range = np.logspace(np.log10(0.0001), np.log10(0.01), 5)
+widths_lossless1 = []
+widths_lossless2 = []
+gamma_dB_per_cm_1 = 0  # 0 dB/cm loss
+gamma_dB_per_cm_2 = 0  # 0 dB/cm loss
+
+for L in tqdm(L_int_range, desc="Width vs L (lossless/lossless)"):
+    # Lossless (using final_state_probability_density_loss)
+    width1 = final_state_probability_density_loss(
+        N, L, sigmaE, v0, omega0, vg, recoil, gamma_dB_per_cm_1
+    )[5]
+    widths_lossless1.append(width1)
+    # Lossless (using final_state_probability_density)
+    width2 = final_state_probability_density(
+        N, L, sigmaE, v0, omega0, vg, recoil, gamma_dB_per_cm_2
+    )[5]
+    widths_lossless2.append(width2)
+
+plt.figure(figsize=(8, 5))
+plt.plot(L_int_range, widths_lossless1, ".-",label="Lossless (with loss kernel)", color="tab:blue")
+plt.plot(L_int_range, widths_lossless2, ".-", label="Lossless (no loss kernel)", color="tab:orange")
+plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
+plt.xlabel("Interaction length $L_{int}$ (m)")
+plt.ylabel("Final width (eV)")
+# plt.yscale("log")
+plt.xscale("log")
+plt.title("Width vs $L_{int}$: Lossless (two methods)")
+plt.legend()
+plt.tight_layout()
+plt.show()
+# %%
