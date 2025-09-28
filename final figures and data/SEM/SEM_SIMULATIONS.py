@@ -954,6 +954,8 @@ plt.legend()
 plt.tight_layout()
 plt.show()
 
+# Save the last figure as SVG
+# plt.savefig("width_vs_L_for_different_sigmaE.svg", format="svg")
 # Save results to CSV
 df_sigmaE = pd.DataFrame(results)
 df_sigmaE.to_csv("width_vs_L_for_different_sigmaE.csv", index=False)
