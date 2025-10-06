@@ -12,6 +12,17 @@ import pandas as pd
 from pathlib import Path
 from tabulate import tabulate
 from matplotlib.colors import TwoSlopeNorm,SymLogNorm
+# %% boot
+import matplotlib
+matplotlib.use("module://matplotlib_inline.backend_inline")  # inline images
+import matplotlib.pyplot as plt
+plt.style.use("default")                                     # avoid dark-on-dark
+# Optional: make sure figures are white
+plt.rcParams["figure.facecolor"] = "white"
+plt.rcParams["axes.facecolor"]   = "white"
+
+# Notebook-friendly progress bars:
+from tqdm.auto import tqdm
 # %% constants :
 from scipy.constants import c, m_e as m, hbar, e, epsilon_0 as eps0
 import pandas as pd
@@ -662,14 +673,14 @@ def L_threshold(initial_width, csv_path):
     return L_thresh
 # %%************************************************************FAST setup************************************************************%% # 
 # %% FAST setup 
-N = 2**9
+N = 2**11
 v0 = 0.9999*c
 E0 = E_rel(v0)  # eV to J
-sigmaE = 8e1 # eV
-omega0 = 2 * np.pi * c / λ(500)  # central angular frequency (rad/s)
+sigmaE = 10e1 # eV
+omega0 = 2 * np.pi * c / λ(700)  # central angular frequency (rad/s)
 L_int = 5e1 # m
 initial_width = sigmaE * 2 * np.sqrt(2 * np.log(2)) 
-gamma_dB_per_cm = 0.01
+gamma_dB_per_cm = 0.1
 print(f"E0 = {E0/e:.3e} eV = {E0/1.60218e-10:.3e} GeV")
 
 L0 = 1.18*4*E0*v0/(sigmaE*e*omega0)
@@ -684,6 +695,8 @@ recoil = recoil_func(omega0, v0)
                                                                                                             recoil,
                                                                                                             gamma_dB_per_cm)
 
+
+from IPython.display import clear_output, display
 dispersion_plot(
     omega0,
     v0,
@@ -744,7 +757,7 @@ df_tem = pd.DataFrame(_rows_tem, columns=["L_int_m", "v_0_m_per_s", "width"])
 df_tem.to_csv(ACCUM_CSV_SEM, index=False)
 L_threshold = L_int_vec[np.argmin(np.abs(widths_2D_tem[:, int(np.floor(v0_num/2))] - initial_width))]
 
-#%%
+#%% Load and plot 2D simulations
 # Load
 df_loaded = pd.read_csv("widths_2D_v0_L_TEM_0_lin_dB.csv")
 
@@ -925,12 +938,12 @@ plt.show()
 # %% 1D GRAPH: width vs L for different losses
 # Load data for 0, 0.5, 1, 1.5 dB/cm
 # 1D GRAPH: width vs L for different losses (simulate and save to CSV)
-L_int_vec_log = np.logspace(np.log10(1 * L0), np.log10(30 * L0), 20)
-loss_labels = [0.001, 0.01, 0.07, 0.1]  # dB/cm
+L_int_vec_log = np.logspace(np.log10(1 * L0), np.log10(500 * L0), 20)
+loss_labels = [0.001, 0.01, 0.08, 0.15]  # dB/cm
 colors = ["tab:blue", "tab:orange", "tab:green", "tab:red"]
 widths_2D_all = []
 results = []
-N = 2**9
+N = 2**11
 for gamma_dB_per_cm, color in zip(loss_labels, colors):
     widths_vs_L = []
     for L_int_test in tqdm(L_int_vec_log, desc=f"Loss={gamma_dB_per_cm} dB/cm", leave=False):
@@ -962,8 +975,8 @@ for gamma_dB_per_cm, color in zip(loss_labels, colors):
     df_plot = df_loss_loaded[df_loss_loaded["loss"] == gamma_dB_per_cm]
     plt.plot(df_plot["L_int"], df_plot["width"], marker='.', linestyle='-', label=f"{gamma_dB_per_cm} dB/cm", color=color)
 
-plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
-plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")
+# plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
+# plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")
 plt.xlabel("Interaction length $L_{int}$ (m)")
 plt.ylabel("Final width (eV)")
 plt.yscale("log")
