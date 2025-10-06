@@ -673,14 +673,14 @@ def L_threshold(initial_width, csv_path):
     return L_thresh
 # %%************************************************************FAST setup************************************************************%% # 
 # %% FAST setup 
-N = 2**11
+N = 2**10
 v0 = 0.9999*c
 E0 = E_rel(v0)  # eV to J
 sigmaE = 10e1 # eV
 omega0 = 2 * np.pi * c / λ(700)  # central angular frequency (rad/s)
 L_int = 5e1 # m
 initial_width = sigmaE * 2 * np.sqrt(2 * np.log(2)) 
-gamma_dB_per_cm = 0.1
+gamma_dB_per_cm = 0.01
 print(f"E0 = {E0/e:.3e} eV = {E0/1.60218e-10:.3e} GeV")
 
 L0 = 1.18*4*E0*v0/(sigmaE*e*omega0)
@@ -938,8 +938,8 @@ plt.show()
 # %% 1D GRAPH: width vs L for different losses
 # Load data for 0, 0.5, 1, 1.5 dB/cm
 # 1D GRAPH: width vs L for different losses (simulate and save to CSV)
-L_int_vec_log = np.logspace(np.log10(1 * L0), np.log10(500 * L0), 20)
-loss_labels = [0.001, 0.01, 0.08, 0.15]  # dB/cm
+L_int_vec_log = np.logspace(np.log10(1 * L0), np.log10(1e5 * L0), 20)
+loss_labels = [0.001, 0.01, 0.1, 0.5]  # dB/cm
 colors = ["tab:blue", "tab:orange", "tab:green", "tab:red"]
 widths_2D_all = []
 results = []
@@ -985,6 +985,8 @@ plt.title(r"Width vs $L_{int}$ for $v_0 = v_g$ at different losses")
 plt.legend()
 plt.tight_layout()
 plt.show()
+# Save the last figure as SVG
+plt.savefig("width_vs_L_for_different_losses_FAST.svg", format="svg")
 # %% 1D GRAPH: width vs L for different initial widths
 # 1D GRAPH: width vs L for different initial widths (sigmaE)
 # Import L_int_vec_rounded from the CSV file to use as the L vector for the simulation
