@@ -994,11 +994,11 @@ plt.savefig("width_vs_L_for_different_losses_FAST.svg", format="svg")
 # Step 1: Run simulation and save results to CSV
 # 1D GRAPH: width vs L for different initial widths (sigmaE) -- NO CSV import for L_int_vec
 # Use the same L_int_vec as in the 2D simulation above, but restrict to L < 0.02
-L_int_vec_log = np.logspace(np.log10(1 * L0), np.log10(10 * L0), 20)
+L_int_vec_log = np.logspace(np.log10(1 * L0), np.log10(1e5 * L0), 20)
 sigmaE_values = np.logspace(np.log10(0.5 * sigmaE), np.log10(2 * sigmaE), 5)
 sigmaE_labels = [r"$0.1\,\sigma_E$", r"$\sigma_E$", r"$0.5\,\sigma_E$", r"$1.5\,\sigma_E$", r"$2\,\sigma_E$"]
 colors_sigmaE = ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple"]
-N = 2**10
+N = 2**11
 results = []
 widths_vs_L_all = []
 gamma_dB_per_cm = 0
@@ -1019,7 +1019,7 @@ for sigmaE_val, label, color in zip(sigmaE_values, sigmaE_labels, colors_sigmaE)
     widths_vs_L_all.append((widths_vs_L, label, color))
 
 df_sigmaE = pd.DataFrame(results)
-df_sigmaE.to_csv("width_vs_L_for_different_sigmaE.csv", index=False)
+df_sigmaE.to_csv("width_vs_L_for_different_sigmaE_FAST.csv", index=False)
 
 # Plot directly from simulation results (no CSV load)
 plt.figure(figsize=(8, 5))
@@ -1038,7 +1038,7 @@ plt.tight_layout()
 plt.show()
 
 # Save the last figure as SVG
-# plt.savefig("width_vs_L_for_different_sigmaE.svg", format="svg")
+plt.savefig("width_vs_L_for_different_sigmaE_FAST.svg", format="svg")
 # %% 1D GRAPH: width vs L for different v0 values
 # Simulate width vs L for several v0 values (at fixed sigmaE, omega0)
 omega0 = 2 * np.pi * c / λ(0.8)  # central angular frequency (rad/s)
