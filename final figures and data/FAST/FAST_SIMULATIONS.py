@@ -662,20 +662,21 @@ def L_threshold(initial_width, csv_path):
     return L_thresh
 # %%************************************************************FAST setup************************************************************%% # 
 # %% FAST setup 
-N = 2**11
+N = 2**9
 v0 = 0.9999*c
 E0 = E_rel(v0)  # eV to J
-sigmaE = 2.5e1 # eV
+sigmaE = 8e1 # eV
 omega0 = 2 * np.pi * c / λ(500)  # central angular frequency (rad/s)
 L_int = 5e1 # m
 initial_width = sigmaE * 2 * np.sqrt(2 * np.log(2)) 
-gamma_dB_per_cm = 0
+gamma_dB_per_cm = 0.01
+print(f"E0 = {E0/e:.3e} eV = {E0/1.60218e-10:.3e} GeV")
 
 L0 = 1.18*4*E0*v0/(sigmaE*e*omega0)
 vg = v_g_func(omega0, v0)
 recoil = recoil_func(omega0, v0)
 
-δE_f_eV, δω, rho_e, rho_e_initial, rho_f_p, final_width_eV, p1,L_eff = final_state_probability_density(N,
+δE_f_eV, δω, rho_e, rho_e_initial, rho_f_p, final_width_eV, p1,L_eff = final_state_probability_density_loss(N,
                                                                                                             L_int,
                                                                                                             sigmaE,
                                                                                                             v0, omega0,
@@ -713,8 +714,8 @@ plt.grid(True)
 plt.tight_layout()
 plt.show()
 # %% 2D simulation: v0 vs L for different losses:
-L_num = 21
-v0_num = 21
+L_num = 11
+v0_num = 11
 
 L_int_vec = np.linspace(0.001 , 13, L_num)* L0
 v0_vec = np.linspace(0.99999, 1.00001, v0_num) * vg
@@ -728,7 +729,7 @@ L0 = 1.18 * 4 * (E0 * v0 / (sigmaE * e * omega0))   # optimal interaction length
 vg = v_g_func(omega0, v0)
 recoil = recoil_func(omega0, v0)
 _rows_tem = []
-for i, L_int_test in enumerate(tqdm(L_int_vec, desc="Scanning L_int (TEM)", position=0)):
+for i, L_int_test in enumerate(tqdm(L_int_vec, desc="Scanning L_int (FAST)", position=0)):
     print(f"Scanning L_int = {L_int_test:.5f} m")
     for j, v0_test in enumerate(tqdm(v0_vec, desc=f"Scanning v_0 for L_int={L_int_test:.5f}", leave=False, position=1)):
         width = float(final_state_probability_density_loss(
@@ -738,7 +739,7 @@ for i, L_int_test in enumerate(tqdm(L_int_vec, desc="Scanning L_int (TEM)", posi
         widths_2D_tem[i, j] = width
         _rows_tem.append((float(L_int_test), float(v0_test), width))
 # Save to CSV
-ACCUM_CSV_SEM = "widths_2D_v0_L_TEM_0_lin_dB.csv"
+ACCUM_CSV_SEM = "widths_2D_v0_L_FAST_0_lin_dB.csv"
 df_tem = pd.DataFrame(_rows_tem, columns=["L_int_m", "v_0_m_per_s", "width"])
 df_tem.to_csv(ACCUM_CSV_SEM, index=False)
 L_threshold = L_int_vec[np.argmin(np.abs(widths_2D_tem[:, int(np.floor(v0_num/2))] - initial_width))]
@@ -925,7 +926,7 @@ plt.show()
 # Load data for 0, 0.5, 1, 1.5 dB/cm
 # 1D GRAPH: width vs L for different losses (simulate and save to CSV)
 L_int_vec_log = np.logspace(np.log10(1 * L0), np.log10(30 * L0), 20)
-loss_labels = [0, 0.5, 1, 1.5]  # dB/cm
+loss_labels = [0.001, 0.01, 0.07, 0.1]  # dB/cm
 colors = ["tab:blue", "tab:orange", "tab:green", "tab:red"]
 widths_2D_all = []
 results = []
@@ -952,11 +953,10 @@ df_loss.to_csv("width_vs_L_for_different_losses.csv", index=False)
 # Load from CSV and plot
 # Save results to CSV before loading for plotting
 df_loss = pd.DataFrame(results)
-df_loss.to_csv("width_vs_L_for_different_losses_TEM.csv", index=False)
+df_loss.to_csv("width_vs_L_for_different_losses_FAST.csv", index=False)
 
-df_loss_loaded = pd.read_csv("width_vs_L_for_different_losses_TEM.csv")
-# Import the data from CSV for plotting
-df_loss_loaded = pd.read_csv("width_vs_L_for_different_losses_TEM.csv")
+# Load from CSV and plot
+df_loss_loaded = pd.read_csv("width_vs_L_for_different_losses_FAST.csv")
 plt.figure(figsize=(8, 5))
 for gamma_dB_per_cm, color in zip(loss_labels, colors):
     df_plot = df_loss_loaded[df_loss_loaded["loss"] == gamma_dB_per_cm]
