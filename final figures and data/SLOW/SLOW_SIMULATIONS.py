@@ -629,19 +629,20 @@ def dispersion_plot(omega0, v0,v_g_function,recoil_function, E_function, k_funct
     plt.show()  
 # %%************************************************************SLOW setup************************************************************%% # 
 # %% SLOW setup 
-N =2**12
+N =2**11
 E0 = 300 * e
 v0 = v_rel(E0) 
 lambda0 = 500e-9
 omega0 = 2 * np.pi * c / lambda0  # central angular frequency (rad/s)
 L_int = 0.0001
-sigmaE = 0.2
+sigmaE = 0.3
 L0 = 1.18 *  4  * (E0*v0 / (sigmaE*e*omega0))   # optimal interaction length
 initial_width = sigmaE * 2 * np.sqrt(2 * np.log(2)) 
 vg = v_g_func(omega0, v0)
 recoil = recoil_func(omega0, v0)
-δE_f_eV, δω, rho_e, rho_e_initial, rho_f_p, final_width_eV, p1,l_eff = final_state_probability_density(N, L_int, sigmaE, v0, omega0,
-                                                                   vg, recoil)
+gamma_dB_per_cm = 100
+δE_f_eV, δω, rho_e, rho_e_initial, rho_f_p, final_width_eV, p1,l_eff = final_state_probability_density_loss(N, L_int, sigmaE, v0, omega0,
+                                                                   vg, recoil,gamma_dB_per_cm)
 
 plt.figure(figsize=(8, 5))
 plt.plot(δE_f_eV, rho_e, label="Final electron distribution ($\\rho_f$)")
@@ -678,29 +679,33 @@ df_tem = pd.DataFrame({
     "width": widths_vs_L_slow
 })
 df_tem.to_csv(ACCUM_CSV, index=False)
+# Load CSV data for plotting
+df_loaded = pd.read_csv("widths_vs_L_v0=10268219.970665665.csv")
+L_int_loaded = df_loaded["L_int_m"].to_numpy()
+widths_loaded = df_loaded["width"].to_numpy()
 
-L_threshold = L_int_vec[np.argmin(np.abs(widths_vs_L_slow - initial_width))]
-
-plt.plot(L_int_vec, widths_vs_L_slow, marker='.', linestyle='-')
+plt.figure(figsize=(8, 5))
+plt.plot(L_int_loaded, widths_loaded, marker='.', linestyle='-', label="Final width (from CSV)")
 plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
-plt.axvline(L_threshold, color="tab:blue", linestyle="--", label=r"$L_\mathrm{the}$")
+#plt.axvline(L_threshold, color="tab:blue", linestyle="--", label=r"$L_\mathrm{the}$")
 plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")
 plt.xlabel("Interaction length $L_{int}$ (m)")
 plt.ylabel("Final width (same units as CSV)")
 plt.yscale("log")
 plt.xscale("log")
-plt.title(r"Width vs $L_{int}$ for $v_0 = v_g$ at different losses")
+plt.title(r"Width vs $L_{int}$ for $v_0 = v_g$ (from CSV data)")
 plt.legend()
 plt.tight_layout()
 plt.show()
 
 
+
 # %% 
 # Load data for 0, 10, 30, 100 dB/cm
-df_0db = pd.read_csv("widths_2D_v0_L_SEM_0_log_dB.csv")
-df_10db = pd.read_csv("widths_2D_v0_L_SEM_10_log_dB.csv")
-df_30db = pd.read_csv("widths_2D_v0_L_SEM_30_log_dB.csv")
-df_100db = pd.read_csv("widths_2D_v0_L_SEM_100_log_dB.csv")
+df_0db = pd.read_csv("widths_2D_v0_L_SLOW_0_log_dB.csv")
+df_10db = pd.read_csv("widths_2D_v0_L_SLOW_10_log_dB.csv")
+df_30db = pd.read_csv("widths_2D_v0_L_SLOW_30_log_dB.csv")
+df_100db = pd.read_csv("widths_2D_v0_L_SLOW_100_log_dB.csv")
 
 # Round to align keys (same as 10 dB plot)
 for df in [df_0db, df_10db, df_30db, df_100db]:
@@ -826,42 +831,56 @@ plt.grid(True)
 plt.tight_layout()
 plt.show()
 # %% 1D GRAPH: width vs L for different losses
-# Load data for 0, 10, 30, 100 dB/cm
-df_0db = pd.read_csv("widths_2D_v0_L_SEM_0_log_dB.csv")
-df_10db = pd.read_csv("widths_2D_v0_L_SEM_10_log_dB.csv")
-df_30db = pd.read_csv("widths_2D_v0_L_SEM_30_log_dB.csv")
-df_100db = pd.read_csv("widths_2D_v0_L_SEM_100_log_dB.csv")
+# 1D GRAPH: width vs L for different losses
+L_num = 21
+L_int_vec = np.logspace(np.log10(0.1 * L0), np.log10(400 * L0), L_num)  # m
+loss_values = [0, 100, 500, 1000]  # dB/cm
+loss_labels = [r"0 dB/cm", r"100 dB/cm", r"500 dB/cm", r"1000 dB/cm"]
+colors_loss = ["tab:blue", "tab:orange", "tab:green", "tab:red"]
+N = 2**11
+results = []
+vg = v_g_func(omega0, v0)
+recoil = recoil_func(omega0,v0)
+# Calculate and save results to CSV
+results = []
+for loss_val, label, color in zip(loss_values, loss_labels, colors_loss):
+    widths_vs_L = []
+    for L_int_test in tqdm(L_int_vec, desc=f"Loss={label}", leave=False):
+        width = float(final_state_probability_density_loss(
+            N, L_int_test, sigmaE, vg, omega0,
+            vg, recoil, loss_val
+        )[5])
+        widths_vs_L.append(width)
+        results.append({
+            "loss": loss_val,
+            "L_int": L_int_test,
+            "width": width,
+            "label": label
+        })
 
-# Round to align keys (same as 10 dB plot)
-for df in [df_0db, df_10db, df_30db, df_100db]:
-    df["L_int_m"] = np.round(df["L_int_m"], 8)
-    df["v_0_m_per_s"] = np.round(df["v_0_m_per_s"], 8)
+df_loss = pd.DataFrame(results)
+df_loss.to_csv("width_vs_L_for_different_loss.csv", index=False)
 
-# Get unique L_int and v0 values from df_0db (assuming consistent across files)
-L_int_vec_rounded = np.sort(df_0db["L_int_m"].unique())  # 61 values
-v0_vec_rounded = np.sort(df_0db["v_0_m_per_s"].unique())  # 61 values
-loss_labels = [0, 10, 30, 100]
-widths_2D_all = [widths_2D_0db, widths_2D_10db, widths_2D_30db, widths_2D_100db]
-colors = ["tab:blue", "tab:orange", "tab:green", "tab:red"]
-
-# Find index of v0 closest to vg
-v0_idx = np.argmin(np.abs(v0_vec_rounded - vg))
-
+# Load data from CSV and plot
+df_loaded = pd.read_csv("width_vs_L_for_different_loss.csv")
 plt.figure(figsize=(8, 5))
-for widths, loss, color in zip(widths_2D_all, loss_labels, colors):
-    width_vs_L = widths[:, v0_idx]
-    plt.plot(L_int_vec_rounded, width_vs_L, marker='.', linestyle='-', label=f"{loss} dB/cm", color=color)
+for loss_val, label, color in zip(loss_values, loss_labels, colors_loss):
+    df_sub = df_loaded[df_loaded["loss"] == loss_val]
+    # Plot up to the 2nd last point of L_int
+    plt.plot(df_sub["L_int"][:-1], df_sub["width"][:-1], marker='.', linestyle='-', label=label, color=color)
 
-plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
-plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")
 plt.xlabel("Interaction length $L_{int}$ (m)")
-plt.ylabel("Final width (same units as CSV)")
+plt.ylabel("Final width (eV)")
 plt.yscale("log")
 plt.xscale("log")
-plt.title(r"Width vs $L_{int}$ for $v_0 = v_g$ at different losses")
+plt.title(r"Width vs $L_{int}$ for different loss values")
 plt.legend()
 plt.tight_layout()
 plt.show()
+
+# Save results to CSV
+df_loss = pd.DataFrame(results)
+df_loss.to_csv("width_vs_L_for_different_loss.csv", index=False)
 # %% 1D GRAPH: width vs L for different initial widths
 # 1D GRAPH: width vs L for different initial widths (sigmaE)
 sigmaE_values = [sigmaE, 0.5 * sigmaE, 1.5 * sigmaE]
