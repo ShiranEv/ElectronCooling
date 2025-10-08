@@ -702,9 +702,6 @@ plt.show()
 L_num = 41
 v0_num = 41
 
-# Define L_int_vec and v0_vec with the same length
-# L_int_vec = np.linspace(0.001 , 13, L_num)* L0
-# v0_vec: more points around the center (v0), total 41 points, but keep close to original definition
 L_int_vec = np.logspace(np.log10(0.001), np.log10(13), L_num) * L0
 v0_vec = np.logspace(np.log10(0.9995), np.log10(1.0005), v0_num) * vg
 # v0_vec = np.linspace(0.9995, 1.0005, v0_num) * vg
@@ -730,7 +727,7 @@ df_tem = pd.DataFrame(_rows_tem, columns=["L_int_m", "v_0_m_per_s", "width"])
 df_tem.to_csv(ACCUM_CSV_SEM, index=False)
 L_threshold = L_int_vec[np.argmin(np.abs(widths_2D_tem[:, int(np.floor(v0_num/2))] - initial_width))]
 
-#%%
+# %% 
 # Load
 df_loaded = pd.read_csv("widths_2D_v0_L_SEM_0_lin_dB.csv")
 
@@ -909,34 +906,38 @@ plt.show()
 # fig.savefig("widths_2D_v0_L_SEM_comparison.svg", format="svg")
 
 # %% 1D GRAPH: width vs L for different losses
-# Load data for 0, 10, 30, 100 dB/cm
-df_0db = pd.read_csv("widths_2D_v0_L_SEM_0_log_dB.csv")
-df_10db = pd.read_csv("widths_2D_v0_L_SEM_10_log_dB.csv")
-df_30db = pd.read_csv("widths_2D_v0_L_SEM_30_log_dB.csv")
-df_100db = pd.read_csv("widths_2D_v0_L_SEM_100_log_dB.csv")
-L_th = L_threshold(initial_width, "widths_2D_v0_L_SEM_0_log_dB.csv")
-# Round to align keys (same as 10 dB plot)
-for df in [df_0db, df_10db, df_30db, df_100db]:
-    df["L_int_m"] = np.round(df["L_int_m"], 8)
-    df["v_0_m_per_s"] = np.round(df["v_0_m_per_s"], 8)
-
-# Get unique L_int and v0 values from df_0db (assuming consistent across files)
-L_int_vec_rounded = np.sort(df_0db["L_int_m"].unique())
-L_int_vec_rounded = L_int_vec_rounded[L_int_vec_rounded < 0.01]
-v0_vec_rounded = np.sort(df_0db["v_0_m_per_s"].unique())  # 61 values
-loss_labels = [0, 10, 30, 100]
-widths_2D_all = [widths_2D_0db, widths_2D_10db, widths_2D_30db, widths_2D_100db]
+L_num = 11
+L_int_vec = np.logspace(np.log10(0.001* L0), np.log10(40* L0), L_num) 
+loss_values = [0, 10, 30, 100]
+loss_labels = ["0 dB/cm", "10 dB/cm", "30 dB/cm", "100 dB/cm"]
 colors = ["tab:blue", "tab:orange", "tab:green", "tab:red"]
+N = 2**11
+# Run simulation and save results to CSV
+results = []
+for gamma_dB_per_cm, label in zip(loss_values, loss_labels):
+    for L_int_test in tqdm(L_int_vec, desc=f"Loss={gamma_dB_per_cm} dB/cm", leave=False):
+        width = float(final_state_probability_density_loss(
+            N, L_int_test, sigmaE, v0, omega0,
+            vg, recoil, gamma_dB_per_cm
+        )[5])
+        results.append({
+            "loss": gamma_dB_per_cm,
+            "label": label,
+            "L_int": L_int_test,
+            "width": width
+        })
 
-# Find index of v0 closest to vg
-v0_idx = np.argmin(np.abs(v0_vec_rounded - vg))
+df_widths_vs_L_loss = pd.DataFrame(results)
+df_widths_vs_L_loss.to_csv("width_vs_L_for_different_losses.csv", index=False)
+
+# Load results from CSV and plot
+df_loaded = pd.read_csv("width_vs_L_for_different_losses.csv")
+
 
 plt.figure(figsize=(8, 5))
-for widths, loss, color in zip(widths_2D_all, loss_labels, colors):
-    width_vs_L = widths[:, v0_idx]
-    # Ensure L_int_vec_rounded and width_vs_L have the same length
-    min_len = min(len(L_int_vec_rounded), len(width_vs_L))
-    plt.plot(L_int_vec_rounded[:min_len], width_vs_L[:min_len], marker='.', linestyle='-', label=f"{loss} dB/cm", color=color)
+for label, color in zip(loss_labels, colors):
+    df_plot = df_loaded[df_loaded["label"] == label]
+    plt.plot(df_plot["L_int"], df_plot["width"], marker='.', linestyle='-', label=label, color=color)
 
 plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
 plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")
@@ -947,63 +948,53 @@ plt.xscale("log")
 plt.title(r"Width vs $L_{int}$ for $v_0 = v_g$ at different losses")
 plt.legend()
 plt.tight_layout()
+plt.savefig("width_vs_L_for_different_losses.svg", format="svg")
 plt.show()
+
 # %% 1D GRAPH: width vs L for different initial widths
-# 1D GRAPH: width vs L for different initial widths (sigmaE)
-# Import L_int_vec_rounded from the CSV file to use as the L vector for the simulation
-# --- 1D GRAPH: width vs L for different initial widths (sigmaE) ---
-# Step 1: Run simulation and save results to CSV
-df_loaded = pd.read_csv("widths_2D_v0_L_SEM_0_log_dB.csv")
-
-L_int_vec_rounded = np.sort(df_loaded["L_int_m"].unique())
-# Cut L_int_vec_rounded for only values of L < 0.02
-L_int_vec_rounded = L_int_vec_rounded[L_int_vec_rounded < 0.02]
-sigmaE_values = [0.1 * sigmaE, sigmaE, 0.5 * sigmaE, 1.5 * sigmaE, 2 * sigmaE]
-sigmaE_labels = [r"$0.1\,\sigma_E$", r"$\sigma_E$", r"$0.5\,\sigma_E$", r"$1.5\,\sigma_E$", r"$2\,\sigma_E$"]
-colors_sigmaE = ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple"]
-N = 2**12
-results = []
-widths_vs_L_all = []
-
-for sigmaE_val, label, color in zip(sigmaE_values, sigmaE_labels, colors_sigmaE):
+L_int_vec = np.logspace(np.log10(0.001* L0), np.log10(40* L0), L_num) 
+sigmaE_factors = [0.1, 0.25, 0.5, 1.5]
+sigmaE_values = [f * sigmaE for f in sigmaE_factors]
+sigmaE_labels = [rf"${f}\,\sigma_E$" for f in sigmaE_factors]
+N = 2**11
+results_sigmaE = []
+gamma_dB_per_cm = 0 
+for sigmaE_val, label in zip(sigmaE_values, sigmaE_labels):
     widths_vs_L = []
-    for L_int_test in tqdm(L_int_vec_rounded, desc=f"σE={label}", leave=False):
+    for L_int_test in tqdm(L_int_vec, desc=f"σE={label}", leave=False):
         width = float(final_state_probability_density(
             N, L_int_test, sigmaE_val, v0, omega0,
             vg, recoil, gamma_dB_per_cm
         )[5])
         widths_vs_L.append(width)
-        results.append({
+        results_sigmaE.append({
             "sigmaE": sigmaE_val,
             "L_int": L_int_test,
             "width": width,
             "label": label
         })
-    widths_vs_L_all.append((widths_vs_L, label, color))
 
-df_sigmaE = pd.DataFrame(results)
+# Save results to CSV
+df_sigmaE = pd.DataFrame(results_sigmaE)
 df_sigmaE.to_csv("width_vs_L_for_different_sigmaE.csv", index=False)
 
 # Step 2: Load results from CSV and plot
 df_sigmaE_loaded = pd.read_csv("width_vs_L_for_different_sigmaE.csv")
 plt.figure(figsize=(8, 5))
-for label, color in zip(sigmaE_labels, colors_sigmaE):
+markers = ['o', '*', '^', 'D']
+for label, marker in zip(sigmaE_labels, markers):
     df_plot = df_sigmaE_loaded[df_sigmaE_loaded["label"] == label]
-    plt.plot(df_plot["L_int"], df_plot["width"], marker='.', linestyle='-', label=label, color=color)
+    plt.plot(df_plot["L_int"], df_plot["width"], marker=marker, linestyle='-', label=label, markersize=5)
 plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
 plt.xlabel("Interaction length $L_{int}$ (m)")
 plt.ylabel("Final width (eV)")
 plt.yscale("log")
 plt.xscale("log")
-plt.title(r"Width vs $L_{int}$ for different $\sigma_E$")
+plt.title(r"Width vs $L_{int}$ for different initial widths $\sigma_E$")
 plt.legend()
 plt.tight_layout()
+plt.savefig("width_vs_L_for_different_sigmaE.svg", format="svg")
 plt.show()
-
-# Save the last figure as SVG
-# plt.savefig("width_vs_L_for_different_sigmaE.svg", format="svg")
-# Save results to CSV
-
 # %% 1D GRAPH: width vs L for different omega0
 # Create L_int_vec and v0_vec in logscale
 # L_int_vec: logarithmically spaced from 0.001*L0 to 15*L0, 30 points
@@ -1052,6 +1043,28 @@ plt.tight_layout()
 plt.show()
 # Save the last figure as SVG
 plt.savefig("width_vs_L_for_different_omega0.svg", format="svg")
+
+# %% 1D graph width vs v0 :
+v0_num = 41
+
+v0_vec = np.linspace(0.999, 1.001, v0_num) * vg
+widths_1D_v0 = np.zeros(len(v0_vec))        
+N = 2**9
+for i, v0_test in enumerate(tqdm(v0_vec, desc="Scanning v_0", position=0)):
+    widths_1D_v0[i] = float(final_state_probability_density(
+        N, L_int, sigmaE, v0_test, omega0,
+        vg, recoil, gamma_dB_per_cm
+    )[5])   
+plt.figure(figsize=(8, 5))
+plt.plot(v0_vec/c, widths_1D_v0, marker='.', linestyle='-')
+plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")  
+plt.axvline(vg/c, color="red", linestyle="--", label=r"$v_0 = v_g$")
+plt.xlabel("Electron velocity $v_0$ (c)")
+plt.ylabel("Final width (eV)")
+plt.title("Final width vs $v_0$\n($L_{int} = %.3g$ m)" % L_int)
+plt.legend()
+plt.tight_layout()
+plt.show()
 
 # %% 2D graph: width vs v0 and initial width (sigmaE)
 sigmaE_num = 41
