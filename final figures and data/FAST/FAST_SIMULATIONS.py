@@ -994,11 +994,11 @@ plt.savefig("width_vs_L_for_different_losses_FAST.svg", format="svg")
 # Step 1: Run simulation and save results to CSV
 # 1D GRAPH: width vs L for different initial widths (sigmaE) -- NO CSV import for L_int_vec
 # Use the same L_int_vec as in the 2D simulation above, but restrict to L < 0.02
-L_int_vec_log = np.logspace(np.log10(1 * L0), np.log10(1e5 * L0), 20)
-sigmaE_values = np.logspace(np.log10(0.5 * sigmaE), np.log10(2 * sigmaE), 5)
+L_int_vec_log = np.logspace(np.log10(1 * L0), np.log10(5e5 * L0), 20)
+sigmaE_values = np.logspace(np.log10(0.05 * sigmaE), np.log10(1.5 * sigmaE), 5)
 sigmaE_labels = [r"$0.1\,\sigma_E$", r"$\sigma_E$", r"$0.5\,\sigma_E$", r"$1.5\,\sigma_E$", r"$2\,\sigma_E$"]
 colors_sigmaE = ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple"]
-N = 2**11
+N = 2**12
 results = []
 widths_vs_L_all = []
 gamma_dB_per_cm = 0
@@ -1020,22 +1020,23 @@ for sigmaE_val, label, color in zip(sigmaE_values, sigmaE_labels, colors_sigmaE)
 
 df_sigmaE = pd.DataFrame(results)
 df_sigmaE.to_csv("width_vs_L_for_different_sigmaE_FAST.csv", index=False)
-
-# Plot directly from simulation results (no CSV load)
+# Load results from CSV and plot
+df_sigmaE_loaded = pd.read_csv("width_vs_L_for_different_sigmaE_FAST.csv")
 plt.figure(figsize=(8, 5))
-for (widths_vs_L, label, color), sigmaE_val in zip(widths_vs_L_all, sigmaE_values* 2 * np.sqrt(2 * np.log(2)) ):
-    plt.plot(L_int_vec_log, widths_vs_L, marker='.', linestyle='-', label=label, color=color)
+for sigmaE_val, label, color in zip(sigmaE_values, sigmaE_labels, colors_sigmaE):
+    df_plot = df_sigmaE_loaded[df_sigmaE_loaded["label"] == label]
+    plt.plot(df_plot["L_int"], df_plot["width"], marker='.', linestyle='-', label=label, color=color)
 plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
 plt.xlabel("Interaction length $L_{int}$ (m)")
 plt.ylabel("Final width (eV)")
 plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")
 plt.yscale("log")
 plt.xscale("log")
-plt.yscale("log")
 plt.title(r"Width vs $L_{int}$ for different $\sigma_E$")
 plt.legend()
 plt.tight_layout()
 plt.show()
+
 
 # Save the last figure as SVG
 plt.savefig("width_vs_L_for_different_sigmaE_FAST.svg", format="svg")
@@ -1089,11 +1090,11 @@ plt.show()
 # Create L_int_vec and v0_vec in logscale
 # L_int_vec: logarithmically spaced from 0.001*L0 to 15*L0, 30 points
 L_int_vec_log = np.logspace(np.log10(1 * L0), np.log10(20 * L0), 20)
-omega0_factors = np.logspace(np.log10(0.3), np.log10(2.0), 7)
+omega0_factors = np.logspace(np.log10(0.3*omega0), np.log10(2.0*omega0), 7)
 omega0_values = [f * omega0 for f in omega0_factors]
 omega0_labels = [rf"${f}\,\omega_0$" if f != 1.0 else r"$\omega_0$" for f in omega0_factors]
 colors_omega0 = ["tab:purple", "tab:blue", "tab:cyan", "tab:orange", "tab:green", "tab:red", "tab:brown"]
-N = 2**11
+N = 2**9
 results = []
 
 # Run simulation and save results to CSV
@@ -1124,7 +1125,7 @@ for omega0_val, label, color in zip(omega0_values, omega0_labels, colors_omega0)
     omega0_THz = omega0_val / (2 * np.pi * 1e12)
     legend_label = f"{omega0_THz:.2f} THz" if label != r"$\omega_0$" else r"$\omega_0$"
     plt.plot(df_plot["L_int"], df_plot["width"], marker='.', linestyle='-', label=legend_label, color=color)
-plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")
+#plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")
 plt.xlabel("Interaction length $L_{int}$ (m)")
 plt.ylabel("Final width (eV)")
 plt.yscale("log")

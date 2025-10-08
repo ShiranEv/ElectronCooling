@@ -924,12 +924,12 @@ plt.show()
 # %% 1D GRAPH: width vs L for different losses
 # Load data for 0, 0.5, 1, 1.5 dB/cm
 # 1D GRAPH: width vs L for different losses (simulate and save to CSV)
-L_int_vec_log = np.logspace(np.log10(1 * L0), np.log10(30 * L0), 20)
+L_int_vec_log = np.logspace(np.log10(0.01 * L0), np.log10(30 * L0), 20)
 loss_labels = [0, 0.5, 1, 1.5]  # dB/cm
 colors = ["tab:blue", "tab:orange", "tab:green", "tab:red"]
 widths_2D_all = []
 results = []
-N = 2**9
+N = 2**8
 for gamma_dB_per_cm, color in zip(loss_labels, colors):
     widths_vs_L = []
     for L_int_test in tqdm(L_int_vec_log, desc=f"Loss={gamma_dB_per_cm} dB/cm", leave=False):
@@ -979,11 +979,12 @@ plt.show()
 # Step 1: Run simulation and save results to CSV
 # 1D GRAPH: width vs L for different initial widths (sigmaE) -- NO CSV import for L_int_vec
 # Use the same L_int_vec as in the 2D simulation above, but restrict to L < 0.02
-L_int_vec_log = np.logspace(np.log10(1 * L0), np.log10(10 * L0), 20)
-sigmaE_values = np.logspace(np.log10(0.5 * sigmaE), np.log10(2 * sigmaE), 5)
-sigmaE_labels = [r"$0.1\,\sigma_E$", r"$\sigma_E$", r"$0.5\,\sigma_E$", r"$1.5\,\sigma_E$", r"$2\,\sigma_E$"]
+L_int_vec_log = np.logspace(np.log10(0.5 * L0), np.log10(35 * L0), 20)
+sigmaE_values = np.logspace(np.log10(0.05 * sigmaE), np.log10(1.5 * sigmaE), 5)
+sigmaE_labels = [rf"${val/sigmaE:.2f}\,\sigma_E$" for val in sigmaE_values]
+
 colors_sigmaE = ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple"]
-N = 2**10
+N = 2**11
 results = []
 widths_vs_L_all = []
 gamma_dB_per_cm = 0
@@ -1005,20 +1006,23 @@ for sigmaE_val, label, color in zip(sigmaE_values, sigmaE_labels, colors_sigmaE)
 
 df_sigmaE = pd.DataFrame(results)
 df_sigmaE.to_csv("width_vs_L_for_different_sigmaE.csv", index=False)
-
-# Plot directly from simulation results (no CSV load)
+# Load from CSV and plot
+df_sigmaE_loaded = pd.read_csv("width_vs_L_for_different_sigmaE.csv")
 plt.figure(figsize=(8, 5))
-for (widths_vs_L, label, color), sigmaE_val in zip(widths_vs_L_all, sigmaE_values* 2 * np.sqrt(2 * np.log(2)) ):
-    plt.plot(L_int_vec_log, widths_vs_L, marker='.', linestyle='-', label=label, color=color)
+for sigmaE_val, color in zip(sigmaE_values, colors_sigmaE):
+    # Compute sigma value in eV for legend (FWHM)
+    sigma_eV = sigmaE_val * 2 * np.sqrt(2 * np.log(2))
+    legend_label = f"{sigma_eV:.3f} eV"
+    df_plot = df_sigmaE_loaded[np.isclose(df_sigmaE_loaded["sigmaE"], sigmaE_val)]
+    plt.plot(df_plot["L_int"], df_plot["width"], marker='.', linestyle='-', label=legend_label, color=color)
 plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
 plt.xlabel("Interaction length $L_{int}$ (m)")
 plt.ylabel("Final width (eV)")
 plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")
 plt.yscale("log")
 plt.xscale("log")
-plt.yscale("log")
 plt.title(r"Width vs $L_{int}$ for different $\sigma_E$")
-plt.legend()
+plt.legend(title=r"$\sigma_E$ (eV)")
 plt.tight_layout()
 plt.show()
 
