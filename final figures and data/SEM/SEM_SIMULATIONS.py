@@ -670,9 +670,9 @@ E0 = E_rel(v0)
 lambda0 = 500e-9
 omega0 = 2 * np.pi * c / lambda0  # central angular frequency (rad/s)
 L_int = 0.01
-sigmaE = 0.1 * hbar * omega0 / e
-L0 = 1.18 *  4  * (E0*v0 / (sigmaE*e*omega0))   # optimal interaction length
-initial_width = sigmaE * 2 * np.sqrt(2 * np.log(2)) 
+sigmaE =  0.1 * hbar * omega0 / e
+L0 = 1.18 * 4 * (E0 * v0 / (sigmaE * e * omega0))   # optimal interaction length
+initial_width = sigmaE * 2 * np.sqrt(2 * np.log(2))
 gamma_dB_per_cm = 0
 vg = v_g_func(omega0, v0)
 recoil = recoil_func(omega0, v0)
@@ -1032,35 +1032,11 @@ plt.xscale("log")
 plt.title(r"Width vs $L_{int}$ for different initial widths $\sigma_E$")
 plt.legend()
 plt.tight_layout()
-plt.savefig("width_vs_L_for_different_sigmaE.svg", format="svg")
+plt.savefig("width_vs_L_for_different_sigmaE_and_loss.svg", format="svg")
 plt.show()
 plt.figure(figsize=(8, 5))
 # Use a blue colormap, less extreme color scale for sigmaE
 
-norm = Normalize(vmin=min(sigmaE_factors), vmax=max(sigmaE_factors))
-cmap = cm.get_cmap("Blues")
-# Use a narrower range of the colormap (avoid very light/dark extremes)
-color_indices = np.linspace(0.2, 0.85, len(sigmaE_factors))
-colors_sigmaE = [cmap(ci) for ci in color_indices]
-# Map colors to labels in the same order as sigmaE_labels
-markers = ['x', '*', '^', 'D']
-for label, color in reversed(list(zip(loss_labels, colors))):
-    df_plot = df_loaded[df_loaded["label"] == label]
-    plt.plot(df_plot["L_int"], df_plot["width"], marker='.', linestyle='-', label=label, color=color)
-
-for label, marker, color in zip(sigmaE_labels, markers, colors_sigmaE):
-    df_plot = df_sigmaE_loaded[df_sigmaE_loaded["label"] == label]
-    plt.plot(df_plot["L_int"], df_plot["width"], marker=marker, linestyle='-', label=label, markersize=5, color=color)
-plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
-plt.xlabel("Interaction length $L_{int}$ (m)")
-plt.ylabel("Final width (eV)")
-plt.yscale("log")
-plt.xscale("log")
-plt.title(r"Width vs $L_{int}$ for different initial widths $\sigma_E$")
-plt.legend()
-plt.tight_layout()
-plt.savefig("width_vs_L_for_different_sigmaE.svg", format="svg")
-plt.show()
 # %% 1D GRAPH: width vs L for different omega0
 # Create L_int_vec and v0_vec in logscale
 # L_int_vec: logarithmically spaced from 0.001*L0 to 15*L0, 30 points
@@ -1111,11 +1087,17 @@ plt.show()
 plt.savefig("width_vs_L_for_different_omega0.svg", format="svg")
 
 # %% 1D graph width vs v0 :
-v0_num = 41
+v0_num = 31
 
-v0_vec = np.linspace(0.999, 1.001, v0_num) * vg
+v0_vec = np.unique(
+    np.concatenate([
+        np.linspace(0.99, 1.01, v0_num) * v0,          # ±1%
+        np.linspace(0.999, 1.001, v0_num // 2) * v0,    # ±0.1%
+        [v0],                                           # exact center
+    ])
+)
 widths_1D_v0 = np.zeros(len(v0_vec))        
-N = 2**9
+N = 2**11
 for i, v0_test in enumerate(tqdm(v0_vec, desc="Scanning v_0", position=0)):
     widths_1D_v0[i] = float(final_state_probability_density(
         N, L_int, sigmaE, v0_test, omega0,
@@ -1130,56 +1112,31 @@ plt.ylabel("Final width (eV)")
 plt.title("Final width vs $v_0$\n($L_{int} = %.3g$ m)" % L_int)
 plt.legend()
 plt.tight_layout()
+plt.savefig("width_vs_v0.svg", format="svg")
 plt.show()
 
+
 # %% 2D graph: width vs v0 and initial width (sigmaE)
-sigmaE_num = 41
-v0_num = 41
-v0_vec = np.linspace(0.999, 1.001, v0_num) * vg
-sigmaE_values_2d = np.linspace(0.005 * sigmaE, 2.5 * sigmaE, sigmaE_num)
+sigmaE_num = 61
+v0_num = 31
+v0_vec = np.unique(
+    np.concatenate([
+        np.linspace(0.99, 1.01, v0_num) * v0,          # ±1%
+        np.linspace(0.999, 1.001, v0_num // 2) * v0,    # ±0.1%
+        [v0],                                           # exact center
+    ])
+)
+sigmaE_values_2d = np.linspace(0.005 * sigmaE, 1.5 * sigmaE, sigmaE_num)
 sigmaE_labels_2d = [rf"${val/sigmaE:.2f}\,\sigma_E$" for val in sigmaE_values_2d]
 widths_2D_sigmaE_v0 = np.zeros((len(sigmaE_values_2d), len(v0_vec)))
 
-N = 2**8
+N = 2**9
 for i, sigmaE_val in enumerate(sigmaE_values_2d):
     for j, v0_test in enumerate(tqdm(v0_vec, desc=f"σE={sigmaE_val:.2e}", leave=False)):
         widths_2D_sigmaE_v0[i, j] = float(final_state_probability_density(
             N, L_int, sigmaE_val, v0_test, omega0,
             vg, recoil, gamma_dB_per_cm
         )[5])
-
-# Use log red-blue coloring (SymLogNorm) as before
-finite_vals = widths_2D_sigmaE_v0[np.isfinite(widths_2D_sigmaE_v0)]
-Wmin = float(np.nanmin(finite_vals))
-Wmax = float(np.nanmax(finite_vals))
-linthresh = 0.08 * max(abs(Wmin), abs(Wmax))
-nrm = SymLogNorm(linthresh=linthresh, vmin=Wmin, vmax=Wmax, base=10)
-cmap = "RdBu_r"
-plt.figure(figsize=(8, 5))
-im = plt.imshow(
-    widths_2D_sigmaE_v0,
-    aspect="auto",
-    origin="lower",
-    extent=[v0_vec.min()/c, v0_vec.max()/c, 0, len(sigmaE_values_2d)-1],
-    cmap=cmap,
-    norm=nrm
-)
-# Reduce number of yticks and xticks for clarity
-num_yticks = 6
-num_xticks = 6
-ytick_indices = np.linspace(0, len(sigmaE_values_2d)-1, num_yticks, dtype=int)
-xtick_vals = np.linspace(v0_vec.min()/c, v0_vec.max()/c, num_xticks)
-plt.yticks(ticks=ytick_indices, labels=[sigmaE_labels_2d[i] for i in ytick_indices])
-plt.xticks(ticks=xtick_vals, labels=[f"{x:.4f}" for x in xtick_vals])
-plt.xlabel("Electron velocity $v_0$ (c)")
-plt.ylabel("Initial width $\sigma_E$")
-plt.title("Final width vs $v_0$ and initial width $\sigma_E$\n($L_{int} = %.3g$ m)" % L_int)
-plt.axvline(vg/c, color="red", linestyle="--", label=r"$v_0 = v_g$")
-plt.legend()
-cbar = plt.colorbar(im, label="Final width (eV)")
-plt.tight_layout()
-plt.show()
-
 # Save the 2D sigmaE-v0 width data to CSV
 df_sigmaE_v0 = pd.DataFrame(
     widths_2D_sigmaE_v0,
@@ -1188,9 +1145,66 @@ df_sigmaE_v0 = pd.DataFrame(
 )
 df_sigmaE_v0.index.name = "sigmaE"
 df_sigmaE_v0.columns.name = "v0"
-df_sigmaE_v0.to_csv("widths_2D_sigmaE_v0(3rd_more_resolution).csv")
-# Save the last 2D sigmaE-v0 width figure as SVG
+df_sigmaE_v0.to_csv("widths_2D_sigmaE_v0(NEW).csv")
+
+
+# Load the 2D sigmaE-v0 width data from CSV
+df_sigmaE_v0_loaded = pd.read_csv("widths_2D_sigmaE_v0(NEW).csv", index_col=0)
+widths_2D_sigmaE_v0 = df_sigmaE_v0_loaded.to_numpy(dtype=float)
+
+# Logarithmic normalization per row: white for initial width, blue < initial, red > initial
+widths_2D_sigmaE_v0_lognorm = np.zeros_like(widths_2D_sigmaE_v0)
+initial_widths_eV = []
+for i in range(widths_2D_sigmaE_v0.shape[0]):
+    row = widths_2D_sigmaE_v0[i]
+    finite_row = row[np.isfinite(row)]
+    initial_width_row = sigmaE_values_2d[i] * 2 * np.sqrt(2 * np.log(2))  # FWHM for Gaussian
+    initial_widths_eV.append(initial_width_row)
+    # Avoid log(0) and division by zero
+    eps = max(1e-15, np.nanpercentile(finite_row, 1) * 1e-6) if len(finite_row) > 0 else 1e-15
+    row_safe = np.clip(row, eps, None)
+    # Log ratio: log(width / initial_width_row)
+    log_ratio = np.log10(row_safe / max(initial_width_row, eps))
+    # Normalize so that 0 (white) is initial width, blue < 0, red > 0
+    # Use symmetric normalization based on max(abs(log_ratio))
+    absmax = np.nanmax(np.abs(log_ratio)) if np.any(np.isfinite(log_ratio)) else 1.0
+    if absmax == 0.0:
+        absmax = 1.0
+    widths_2D_sigmaE_v0_lognorm[i] = log_ratio / absmax
+
+cmap = "RdBu_r"
+plt.figure(figsize=(8, 5))
+im = plt.imshow(
+    widths_2D_sigmaE_v0_lognorm,
+    aspect="auto",
+    origin="lower",
+    extent=[v0_vec.min()/c, v0_vec.max()/c, 0, len(sigmaE_values_2d)-1],
+    cmap=cmap,
+    vmin=-1, vmax=1
+)
+# Reduce number of yticks and xticks for clarity
+num_yticks = 6
+num_xticks = 6
+ytick_indices = np.linspace(0, len(sigmaE_values_2d)-1, num_yticks, dtype=int)
+xtick_vals = np.linspace(v0_vec.min()/c, v0_vec.max()/c, num_xticks)
+# Mark initial width ticks with value in eV (3 digits)
+ytick_labels = [
+    f" ({initial_widths_eV[i]:.3f} eV)"
+    for i in ytick_indices
+]
+plt.yticks(ticks=ytick_indices, labels=ytick_labels)
+plt.xticks(ticks=xtick_vals, labels=[f"{x:.4f}" for x in xtick_vals])
+plt.xlabel("Electron velocity $v_0$ (c)")
+plt.ylabel("Initial width $\sigma_E$")
+plt.title("Final width vs $v_0$ and initial width $\sigma_E$\n($L_{int} = %.3g$ m)" % L_int)
+plt.axvline(vg/c, color="red", linestyle="--", label=r"$v_0 = v_g$")
+plt.legend()
+cbar = plt.colorbar(im, label=r"log$_{10}$(width / initial width), normalized per $\sigma_E$ row")
+plt.tight_layout()
 plt.savefig("widths_2D_sigmaE_v0.svg", format="svg")
+plt.show()
+
+
 
 # %% 2D graph: width vs v0 and omega0
 omega0_num = 41
