@@ -1468,7 +1468,7 @@ plt.show()
 # %% 1D continues sigma width vs v0 :
 # 1D simulation: width vs initial sigmaE value (at fixed L_int, v0, omega0, loss)
 sigmaE_num_1d = 41
-sigmaE_values_1d = np.linspace(0.01 * sigmaE, 2 * sigmaE, sigmaE_num_1d)
+sigmaE_values_1d = np.linspace(0.01 * sigmaE, 1.5 * sigmaE, sigmaE_num_1d)
 widths_1D_sigmaE = np.zeros(len(sigmaE_values_1d))
 N = 2**11
 for i, sigmaE_val in enumerate(tqdm(sigmaE_values_1d, desc="Scanning sigmaE", position=0)):
