@@ -629,13 +629,13 @@ def dispersion_plot(omega0, v0,v_g_function,recoil_function, E_function, k_funct
     plt.show()  
 # %%************************************************************SLOW setup************************************************************%% # 
 # %% SLOW setup 
-N =2**11
+N =2**10
 E0 = 300 * e
 v0 = v_rel(E0) 
 lambda0 = 500e-9
 omega0 = 2 * np.pi * c / lambda0  # central angular frequency (rad/s)
 L_int = 0.0001
-sigmaE = 0.3
+sigmaE = 0.2
 L0 = 1.18 *  4  * (E0*v0 / (sigmaE*e*omega0))   # optimal interaction length
 initial_width = sigmaE * 2 * np.sqrt(2 * np.log(2)) 
 vg = v_g_func(omega0, v0)
@@ -1097,12 +1097,13 @@ plt.figure(figsize=(8, 5))
 # Use a blue colormap, less extreme color scale for sigmaE
 plt.savefig("width_vs_L_for_different_sigmaE_and_loss.svg", format="svg")
 # %% 1D continues sigma width vs initial width:
+
 # 1D simulation: width vs initial sigmaE value (at fixed L_int, v0, omega0, loss)
 sigmaE_num_1d = 21
-
-sigmaE_values_1d = np.linspace(0.001 * sigmaE, 5 * sigmaE, sigmaE_num_1d)
+L_int = 2 * L0
+sigmaE_values_1d = np.linspace(0.001 * sigmaE, 1.5 * sigmaE, sigmaE_num_1d)
 widths_1D_sigmaE = np.zeros(len(sigmaE_values_1d))
-N = 2*11
+N = 2**10
 for i, sigmaE_val in enumerate(tqdm(sigmaE_values_1d, desc="Scanning sigmaE", position=0)):
     widths_1D_sigmaE[i] = float(final_state_probability_density(
         N, L_int, sigmaE_val, v0, omega0,
@@ -1114,7 +1115,7 @@ df_1D_sigmaE = pd.DataFrame({
     "sigmaE": sigmaE_values_1d,
     "width": widths_1D_sigmaE
 })
-df_1D_sigmaE.to_csv("width_vs_sigmaE_1D_TEM.csv", index=False)
+df_1D_sigmaE.to_csv("width_vs_sigmaE_1D_slow1.csv", index=False)
 
 # Plot and save to SVG
 plt.figure(figsize=(8, 5))
@@ -1122,6 +1123,7 @@ plt.plot(sigmaE_values_1d, widths_1D_sigmaE, marker='o', linestyle='-')
 plt.xlabel("Initial width $\sigma_E$ (eV)")
 plt.ylabel("Final width (eV)")
 plt.title(r"Final width vs initial $\sigma_E$" + f"\n($L_{{int}} = {L_int:.3g}$ m, $v_0 = {v0/c:.6f}\,c$)")
+plt.plot(sigmaE_values_1d, sigmaE_values_1d, color="gray", linestyle=":", label="Final width = Initial width (y = x)")
 #plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")
 plt.legend()
 plt.tight_layout()
