@@ -1468,11 +1468,11 @@ plt.show()
 # %% 1D continues sigma width vs initial width:
 
 # 1D simulation: width vs initial sigmaE value (at fixed L_int, v0, omega0, loss)
-sigmaE_num_1d = 21
+sigmaE_num_1d = 11
 L_int = 2 * L0
-sigmaE_values_1d = np.linspace(0.001 * sigmaE, 1.5 * sigmaE, sigmaE_num_1d)
+sigmaE_values_1d = np.linspace(0.001 * sigmaE, 1.1 * sigmaE, sigmaE_num_1d)
 widths_1D_sigmaE = np.zeros(len(sigmaE_values_1d))
-N = 2**8
+N = 2**12
 for i, sigmaE_val in enumerate(tqdm(sigmaE_values_1d, desc="Scanning sigmaE", position=0)):
     widths_1D_sigmaE[i] = float(final_state_probability_density(
         N, L_int, sigmaE_val, v0, omega0,
@@ -1499,3 +1499,5 @@ plt.tight_layout()
 plt.savefig("width_vs_sigmaE_1D_FAST.svg", format="svg")
 plt.show()
 plt.savefig("last_figure.svg", format="svg")
+
+# %%
