@@ -12,6 +12,7 @@ import pandas as pd
 from pathlib import Path
 from tabulate import tabulate
 from matplotlib.colors import TwoSlopeNorm,SymLogNorm
+from matplotlib.colors import Normalize
 # %% boot
 import matplotlib
 matplotlib.use("module://matplotlib_inline.backend_inline")  # inline images
@@ -697,6 +698,7 @@ recoil = recoil_func(omega0, v0)
 
 
 from IPython.display import clear_output, display
+
 dispersion_plot(
     omega0,
     v0,
@@ -935,111 +937,112 @@ plt.show()
 # # Save the last 2D comparison figure as SVG
 # # fig.savefig("widths_2D_v0_L_SEM_comparison.svg", format="svg")
 
-# %% 1D GRAPH: width vs L for different losses
-# Load data for 0, 0.5, 1, 1.5 dB/cm
-# 1D GRAPH: width vs L for different losses (simulate and save to CSV)
-L_int_vec_log = np.logspace(np.log10(1 * L0), np.log10(1e5 * L0), 20)
-loss_labels = [0.001, 0.01, 0.1, 0.5]  # dB/cm
-colors = ["tab:blue", "tab:orange", "tab:green", "tab:red"]
-widths_2D_all = []
-results = []
-N = 2**11
-for gamma_dB_per_cm, color in zip(loss_labels, colors):
-    widths_vs_L = []
-    for L_int_test in tqdm(L_int_vec_log, desc=f"Loss={gamma_dB_per_cm} dB/cm", leave=False):
-        width = float(final_state_probability_density_loss(
-            N, L_int_test, sigmaE, vg, omega0,
-            vg, recoil, gamma_dB_per_cm
-        )[5])
-        widths_vs_L.append(width)
-        results.append({
-            "L_int": L_int_test,
-            "loss": gamma_dB_per_cm,
-            "width": width
-        })
-    widths_2D_all.append(widths_vs_L)
+# # %% 1D GRAPH: width vs L for different losses
+# # Load data for 0, 0.5, 1, 1.5 dB/cm
+# # 1D GRAPH: width vs L for different losses (simulate and save to CSV)
+# L_int_vec_log = np.logspace(np.log10(1 * L0), np.log10(1e5 * L0), 20)
+# loss_labels = [0.001, 0.01, 0.1, 0.5]  # dB/cm
+# colors = ["tab:blue", "tab:orange", "tab:green", "tab:red"]
+# widths_2D_all = []
+# results = []
+# N = 2**11
+# for gamma_dB_per_cm, color in zip(loss_labels, colors):
+#     widths_vs_L = []
+#     for L_int_test in tqdm(L_int_vec_log, desc=f"Loss={gamma_dB_per_cm} dB/cm", leave=False):
+#         width = float(final_state_probability_density_loss(
+#             N, L_int_test, sigmaE, vg, omega0,
+#             vg, recoil, gamma_dB_per_cm
+#         )[5])
+#         widths_vs_L.append(width)
+#         results.append({
+#             "L_int": L_int_test,
+#             "loss": gamma_dB_per_cm,
+#             "width": width
+#         })
+#     widths_2D_all.append(widths_vs_L)
 
-# Save results to CSV
-df_loss = pd.DataFrame(results)
-df_loss.to_csv("width_vs_L_for_different_losses.csv", index=False)
+# # Save results to CSV
+# df_loss = pd.DataFrame(results)
+# df_loss.to_csv("width_vs_L_for_different_losses.csv", index=False)
 
-# Load from CSV and plot
-# Save results to CSV before loading for plotting
-df_loss = pd.DataFrame(results)
-df_loss.to_csv("width_vs_L_for_different_losses_FAST.csv", index=False)
+# # Load from CSV and plot
+# # Save results to CSV before loading for plotting
+# df_loss = pd.DataFrame(results)
+# df_loss.to_csv("width_vs_L_for_different_losses_FAST.csv", index=False)
 
-# Load from CSV and plot
-df_loss_loaded = pd.read_csv("width_vs_L_for_different_losses_FAST.csv")
-plt.figure(figsize=(8, 5))
-for gamma_dB_per_cm, color in zip(loss_labels, colors):
-    df_plot = df_loss_loaded[df_loss_loaded["loss"] == gamma_dB_per_cm]
-    plt.plot(df_plot["L_int"], df_plot["width"], marker='.', linestyle='-', label=f"{gamma_dB_per_cm} dB/cm", color=color)
+# # Load from CSV and plot
+# df_loss_loaded = pd.read_csv("width_vs_L_for_different_losses_FAST.csv")
+# plt.figure(figsize=(8, 5))
+# for gamma_dB_per_cm, color in zip(loss_labels, colors):
+#     df_plot = df_loss_loaded[df_loss_loaded["loss"] == gamma_dB_per_cm]
+#     plt.plot(df_plot["L_int"], df_plot["width"], marker='.', linestyle='-', label=f"{gamma_dB_per_cm} dB/cm", color=color)
 
-# plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
-# plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")
-plt.xlabel("Interaction length $L_{int}$ (m)")
-plt.ylabel("Final width (eV)")
-plt.yscale("log")
-plt.xscale("log")
-plt.title(r"Width vs $L_{int}$ for $v_0 = v_g$ at different losses")
-plt.legend()
-plt.tight_layout()
-plt.show()
-# Save the last figure as SVG
-plt.savefig("width_vs_L_for_different_losses_FAST.svg", format="svg")
-# %% 1D GRAPH: width vs L for different initial widths
+# # plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
+# # plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")
+# plt.xlabel("Interaction length $L_{int}$ (m)")
+# plt.ylabel("Final width (eV)")
+# plt.yscale("log")
+# plt.xscale("log")
+# plt.title(r"Width vs $L_{int}$ for $v_0 = v_g$ at different losses")
+# plt.legend()
+# plt.tight_layout()
+# plt.show()
+# # Save the last figure as SVG
+# plt.savefig("width_vs_L_for_different_losses_FAST.svg", format="svg")
+# # %% 1D GRAPH: width vs L for different initial widths
 # 1D GRAPH: width vs L for different initial widths (sigmaE)
 # Import L_int_vec_rounded from the CSV file to use as the L vector for the simulation
 # --- 1D GRAPH: width vs L for different initial widths (sigmaE) ---
 # Step 1: Run simulation and save results to CSV
 # 1D GRAPH: width vs L for different initial widths (sigmaE) -- NO CSV import for L_int_vec
 # Use the same L_int_vec as in the 2D simulation above, but restrict to L < 0.02
-L_int_vec_log = np.logspace(np.log10(1 * L0), np.log10(5e5 * L0), 20)
-sigmaE_values = np.logspace(np.log10(0.05 * sigmaE), np.log10(1.5 * sigmaE), 5)
-sigmaE_labels = [r"$0.1\,\sigma_E$", r"$\sigma_E$", r"$0.5\,\sigma_E$", r"$1.5\,\sigma_E$", r"$2\,\sigma_E$"]
-colors_sigmaE = ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple"]
-N = 2**12
-results = []
-widths_vs_L_all = []
-gamma_dB_per_cm = 0
-for sigmaE_val, label, color in zip(sigmaE_values, sigmaE_labels, colors_sigmaE):
-    widths_vs_L = []
-    for L_int_test in tqdm(L_int_vec_log, desc=f"σE={label}", leave=False):
-        width = float(final_state_probability_density(
-            N, L_int_test, sigmaE_val, v0, omega0,
-            vg, recoil, gamma_dB_per_cm
-        )[5])
-        widths_vs_L.append(width)
-        results.append({
-            "sigmaE": sigmaE_val,
-            "L_int": L_int_test,
-            "width": width,
-            "label": label
-        })
-    widths_vs_L_all.append((widths_vs_L, label, color))
+# L_int_vec_log = np.logspace(np.log10(1 * L0), np.log10(5e5 * L0), 20)
+# sigmaE_values = np.logspace(np.log10(0.05 * sigmaE), np.log10(1.5 * sigmaE), 5)
+# sigmaE_labels = [r"$0.1\,\sigma_E$", r"$\sigma_E$", r"$0.5\,\sigma_E$", r"$1.5\,\sigma_E$", r"$2\,\sigma_E$"]
+# colors_sigmaE = ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple"]
+# N = 2**12
+# results = []
+# widths_vs_L_all = []
+# gamma_dB_per_cm = 0
+# for sigmaE_val, label, color in zip(sigmaE_values, sigmaE_labels, colors_sigmaE):
+#     widths_vs_L = []
+#     for L_int_test in tqdm(L_int_vec_log, desc=f"σE={label}", leave=False):
+#         width = float(final_state_probability_density(
+#             N, L_int_test, sigmaE_val, v0, omega0,
+#             vg, recoil, gamma_dB_per_cm
+#         )[5])
+#         widths_vs_L.append(width)
+#         results.append({
+#             "sigmaE": sigmaE_val,
+#             "L_int": L_int_test,
+#             "width": width,
+#             "label": label
+#         })
+#     widths_vs_L_all.append((widths_vs_L, label, color))
 
-df_sigmaE = pd.DataFrame(results)
-df_sigmaE.to_csv("width_vs_L_for_different_sigmaE_FAST.csv", index=False)
-# Load results from CSV and plot
-df_sigmaE_loaded = pd.read_csv("width_vs_L_for_different_sigmaE_FAST.csv")
-plt.figure(figsize=(8, 5))
-for sigmaE_val, label, color in zip(sigmaE_values, sigmaE_labels, colors_sigmaE):
-    df_plot = df_sigmaE_loaded[df_sigmaE_loaded["label"] == label]
-    plt.plot(df_plot["L_int"], df_plot["width"], marker='.', linestyle='-', label=label, color=color)
-plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
-plt.xlabel("Interaction length $L_{int}$ (m)")
-plt.ylabel("Final width (eV)")
-plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")
-plt.yscale("log")
-plt.xscale("log")
-plt.title(r"Width vs $L_{int}$ for different $\sigma_E$")
-plt.legend()
-plt.tight_layout()
-plt.show()
+# df_sigmaE = pd.DataFrame(results)
+# df_sigmaE.to_csv("width_vs_L_for_different_sigmaE_FAST.csv", index=False)
+# # Load results from CSV and plot
+# df_sigmaE_loaded = pd.read_csv("width_vs_L_for_different_sigmaE_FAST.csv")
+# plt.figure(figsize=(8, 5))
+# for sigmaE_val, label, color in zip(sigmaE_values, sigmaE_labels, colors_sigmaE):
+#     df_plot = df_sigmaE_loaded[df_sigmaE_loaded["label"] == label]
+#     plt.plot(df_plot["L_int"], df_plot["width"], marker='.', linestyle='-', label=label, color=color)
+# plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
+# plt.xlabel("Interaction length $L_{int}$ (m)")
+# plt.ylabel("Final width (eV)")
+# plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")
+# plt.yscale("log")
+# plt.xscale("log")
+# plt.title(r"Width vs $L_{int}$ for different $\sigma_E$")
+# plt.legend()
+# plt.tight_layout()
+# plt.show()
 
 
-# Save the last figure as SVG
-plt.savefig("width_vs_L_for_different_sigmaE_FAST.svg", format="svg")
+# # Save the last figure as SVG
+# plt.savefig("width_vs_L_for_different_sigmaE_FAST.svg", format="svg")
+
 # %% 1D GRAPH: width vs L for different v0 values
 # Simulate width vs L for several v0 values (at fixed sigmaE, omega0)
 omega0 = 2 * np.pi * c / λ(0.8)  # central angular frequency (rad/s)
@@ -1268,4 +1271,229 @@ df_omega0_v0.to_csv("widths_2D_omega0_v0_less_resolution.csv")
 # Save the last 2D omega0-v0 width figure as SVG
 plt.savefig("widths_2D_omega0_v0_less_resolution.svg", format="svg")
 
+#  %% 1D graph width vs v0 :
+v0_num = 21
+
+v0_vec = np.unique(
+    np.concatenate([
+        np.linspace(0.9999999, 1.0000001, v0_num) * v0,          # ±1%
+        np.linspace(0.99999999, 1.00000001, v0_num // 2) * v0,    # ±0.1%
+        [v0],                                           # exact center
+    ])
+)
+widths_1D_v0 = np.zeros(len(v0_vec))        
+N = 2**12
+for i, v0_test in enumerate(tqdm(v0_vec, desc="Scanning v_0", position=0)):
+    widths_1D_v0[i] = float(final_state_probability_density(
+        N, L_int, sigmaE, v0_test, omega0,
+        vg, recoil, gamma_dB_per_cm
+    )[5])   
+plt.figure(figsize=(8, 5))
+plt.plot(v0_vec/c, widths_1D_v0, marker='.', linestyle='-')
+plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")  
+plt.axvline(vg/c, color="red", linestyle="--", label=r"$v_0 = v_g$")
+plt.xlabel("Electron velocity $v_0$ (c)")
+plt.ylabel("Final width (eV)")
+plt.title("Final width vs $v_0$\n($L_{int} = %.3g$ m)" % L_int)
+plt.legend()
+plt.tight_layout()
+
+# Set x-ticks as plain numbers (no scientific notation), 8 digits after the point
+num_xticks = 7
+xtick_vals = np.linspace(np.min(v0_vec/c), np.max(v0_vec/c), num_xticks)
+plt.xticks(xtick_vals, [f"{x:.8f}" for x in xtick_vals])
+
+plt.savefig("width_vs_v0.svg", format="svg")
+plt.show()
+
+# %% 1D GRAPH: width vs L for different losses
+L_num = 11
+L_int_vec = np.logspace(np.log10(0.5* L0), np.log10(1e5* L0), L_num) 
+loss_values = [0, 0.01, 0.1, 0.5]
+loss_labels = ["0 dB/cm", "0.01 dB/cm", "0.1 dB/cm", "0.5 dB/cm"]
+colors = ["tab:blue", "tab:orange", "tab:green", "tab:red"]
+N = 2**11
+# Run simulation and save results to CSV
+results = []
+for gamma_dB_per_cm, label in zip(loss_values, loss_labels):
+    for L_int_test in tqdm(L_int_vec, desc=f"Loss={gamma_dB_per_cm} dB/cm", leave=False):
+        width = float(final_state_probability_density_loss(
+            N, L_int_test, sigmaE, v0, omega0,
+            vg, recoil, gamma_dB_per_cm
+        )[5])
+        results.append({
+            "loss": gamma_dB_per_cm,
+            "label": label,
+            "L_int": L_int_test,
+            "width": width
+        })
+
+df_widths_vs_L_loss = pd.DataFrame(results)
+df_widths_vs_L_loss.to_csv("width_vs_L_for_different_losses_FAST.csv", index=False)
+
+# Load results from CSV and plot
+df_loaded = pd.read_csv("width_vs_L_for_different_losses_FAST.csv")
+
+plt.figure(figsize=(8, 5))
+# Plot in reverse order so 0 dB/cm is on top (last plotted)
+for label, color in reversed(list(zip(loss_labels, colors))):
+    df_plot = df_loaded[df_loaded["label"] == label]
+    plt.plot(df_plot["L_int"], df_plot["width"], marker='.', linestyle='-', label=label, color=color)
+
+#plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
+plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")
+plt.xlabel("Interaction length $L_{int}$ (m)")
+plt.ylabel("Final width (same units as CSV)")
+plt.yscale("log")
+plt.xscale("log")
+plt.title(r"Width vs $L_{int}$ for $v_0 = v_g$ at different losses")
+plt.legend()
+plt.tight_layout()
+plt.savefig("width_vs_L_for_different_losses.svg", format="svg")
+plt.show()
+
+# %% 1D GRAPH: width vs L for different initial widths
+L_num =  11
+L_int_vec = np.logspace(np.log10(0.5* L0), np.log10(1e5* L0), L_num) 
+sigmaE_factors = [0.1, 0.25, 0.5, 1.5]
+sigmaE_values = [f * sigmaE for f in sigmaE_factors]
+sigmaE_labels = [rf"${f}\,\sigma_E$" for f in sigmaE_factors]
+N = 2**10
+results_sigmaE = []
+gamma_dB_per_cm = 0 
+for sigmaE_val, label in zip(sigmaE_values, sigmaE_labels):
+    widths_vs_L = []
+    for L_int_test in tqdm(L_int_vec, desc=f"σE={label}", leave=False):
+        width = float(final_state_probability_density(
+            N, L_int_test, sigmaE_val, v0, omega0,
+            vg, recoil, gamma_dB_per_cm
+        )[5])
+        widths_vs_L.append(width)
+        results_sigmaE.append({
+            "sigmaE": sigmaE_val,
+            "L_int": L_int_test,
+            "width": width,
+            "label": label
+        })
+
+# Save results to CSV
+df_sigmaE = pd.DataFrame(results_sigmaE)
+df_sigmaE.to_csv("width_vs_L_for_different_sigmaE_FAST.csv", index=False)
+
+# Step 2: Load results from CSV and plot
+df_sigmaE_loaded = pd.read_csv("width_vs_L_for_different_sigmaE_FAST.csv")
+plt.figure(figsize=(8, 5))
+# Use a blue colormap, less extreme color scale for sigmaE
+
+norm = Normalize(vmin=min(sigmaE_factors), vmax=max(sigmaE_factors))
+cmap = cm.get_cmap("Blues")
+# Use a narrower range of the colormap (avoid very light/dark extremes)
+color_indices = np.linspace(0.2, 0.85, len(sigmaE_factors))
+colors_sigmaE = [cmap(ci) for ci in color_indices]
+# Map colors to labels in the same order as sigmaE_labels
+markers = ['P', '*', '^', 'D']
+for sigmaE_val, label, marker, color in zip(sigmaE_values, sigmaE_labels, markers, colors_sigmaE):
+    df_plot = df_sigmaE_loaded[df_sigmaE_loaded["label"] == label]
+    legend_label = f"{sigmaE_val:.3f} eV"
+    plt.plot(df_plot["L_int"], df_plot["width"], marker=marker, linestyle='-', label=legend_label, markersize=5, color=color)
+plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ ")
+plt.xlabel("Interaction length $L_{int}$ (m)")
+plt.ylabel("Final width (eV)")
+plt.yscale("log")
+plt.xscale("log")
+plt.title(r"Width vs $L_{int}$ for different initial widths $\sigma_E$")
+plt.legend()
+plt.tight_layout()
+plt.savefig("width_vs_L_for_different_sigmaE.svg", format="svg")
+plt.show()
+# %% 1D graph width vs  L loss and sigmaE:
+plt.figure(figsize=(8, 5))
+norm = Normalize(vmin=min(sigmaE_factors), vmax=max(sigmaE_factors))
+cmap = cm.get_cmap("Blues")
+color_indices = np.linspace(0.2, 0.85, len(sigmaE_factors))
+colors_sigmaE = [cmap(ci) for ci in color_indices]
+markers = ['x', '*', '^', 'D']
+
+for label, color in reversed(list(zip(loss_labels, colors))):
+    df_plot = df_loaded[df_loaded["label"] == label]
+    plt.plot(df_plot["L_int"], df_plot["width"], marker='.', linestyle='-', label=label, color=color)
+
+for sigmaE_val, label, marker, color in zip(sigmaE_values, sigmaE_labels, markers, colors_sigmaE):
+    df_plot = df_sigmaE_loaded[df_sigmaE_loaded["label"] == label]
+    legend_label = f"{sigmaE_val:.3f} eV"
+    plt.plot(df_plot["L_int"], df_plot["width"], marker=marker, linestyle='-', label=legend_label, markersize=5, color=color)
+
+plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
+plt.xlabel("Interaction length $L_{int}$ (m)")
+plt.ylabel("Final width (eV)")
+plt.yscale("log")
+plt.xscale("log")
+plt.title(r"Width vs $L_{int}$ for different initial widths $\sigma_E$")
+plt.legend()
+plt.tight_layout()
+plt.savefig("width_vs_L_for_different_sigmaE_and_loss.svg", format="svg")
+plt.show()
+plt.figure(figsize=(8, 5))
+# Use a blue colormap, less extreme color scale for sigmaE
+
+# 1D simulation: width vs initial sigmaE value (at fixed L_int, v0, omega0, loss)
+sigmaE_num_1d = 41
+sigmaE_values_1d = np.linspace(0.01 * sigmaE, 2.5 * sigmaE, sigmaE_num_1d)
+widths_1D_sigmaE = np.zeros(len(sigmaE_values_1d))
+N = 2**11
+for i, sigmaE_val in enumerate(tqdm(sigmaE_values_1d, desc="Scanning sigmaE", position=0)):
+    widths_1D_sigmaE[i] = float(final_state_probability_density(
+        N, L_int, sigmaE_val, v0, omega0,
+        vg, recoil, gamma_dB_per_cm
+    )[5])
+
+# Save to CSV
+df_1D_sigmaE = pd.DataFrame({
+    "sigmaE": sigmaE_values_1d,
+    "width": widths_1D_sigmaE
+})
+df_1D_sigmaE.to_csv("width_vs_sigmaE_1D_FAST.csv", index=False)
+
+# Plot and save to SVG
+plt.figure(figsize=(8, 5))
+plt.plot(sigmaE_values_1d, widths_1D_sigmaE, marker='o', linestyle='-')
+plt.xlabel("Initial width $\sigma_E$ (eV)")
+plt.ylabel("Final width (eV)")
+plt.title(r"Final width vs initial $\sigma_E$" + f"\n($L_{{int}} = {L_int:.3g}$ m, $v_0 = {v0/c:.6f}\,c$)")
+plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")
+plt.legend()
+plt.tight_layout()
+plt.savefig("width_vs_sigmaE_1D_FAST.svg", format="svg")
+plt.show()
+# %% 1D continues sigma width vs v0 :
+# 1D simulation: width vs initial sigmaE value (at fixed L_int, v0, omega0, loss)
+sigmaE_num_1d = 41
+sigmaE_values_1d = np.linspace(0.01 * sigmaE, 2 * sigmaE, sigmaE_num_1d)
+widths_1D_sigmaE = np.zeros(len(sigmaE_values_1d))
+N = 2**11
+for i, sigmaE_val in enumerate(tqdm(sigmaE_values_1d, desc="Scanning sigmaE", position=0)):
+    widths_1D_sigmaE[i] = float(final_state_probability_density(
+        N, L_int, sigmaE_val, v0, omega0,
+        vg, recoil, gamma_dB_per_cm
+    )[5])
+
+# Save to CSV
+df_1D_sigmaE = pd.DataFrame({
+    "sigmaE": sigmaE_values_1d,
+    "width": widths_1D_sigmaE
+})
+df_1D_sigmaE.to_csv("width_vs_sigmaE_1D_FAST.csv", index=False)
+
+# Plot and save to SVG
+plt.figure(figsize=(8, 5))
+plt.plot(sigmaE_values_1d, widths_1D_sigmaE, marker='o', linestyle='-')
+plt.xlabel("Initial width $\sigma_E$ (eV)")
+plt.ylabel("Final width (eV)")
+plt.title(r"Final width vs initial $\sigma_E$" + f"\n($L_{{int}} = {L_int:.3g}$ m, $v_0 = {v0/c:.6f}\,c$)")
+#plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")
+plt.legend()
+plt.tight_layout()
+plt.savefig("width_vs_sigmaE_1D_FAST.svg", format="svg")
+plt.show()
+plt.savefig("last_figure.svg", format="svg")
 # %%
