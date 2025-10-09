@@ -20,6 +20,8 @@ from tqdm import tqdm
 from scipy.interpolate import interp1d
 import csv
 from matplotlib.colors import SymLogNorm
+from matplotlib import cm
+from matplotlib.colors import Normalize
 # %% functions :
 
 # Definitions
@@ -933,9 +935,9 @@ df_widths_vs_L_loss.to_csv("width_vs_L_for_different_losses.csv", index=False)
 # Load results from CSV and plot
 df_loaded = pd.read_csv("width_vs_L_for_different_losses.csv")
 
-
 plt.figure(figsize=(8, 5))
-for label, color in zip(loss_labels, colors):
+# Plot in reverse order so 0 dB/cm is on top (last plotted)
+for label, color in reversed(list(zip(loss_labels, colors))):
     df_plot = df_loaded[df_loaded["label"] == label]
     plt.plot(df_plot["L_int"], df_plot["width"], marker='.', linestyle='-', label=label, color=color)
 
@@ -952,11 +954,12 @@ plt.savefig("width_vs_L_for_different_losses.svg", format="svg")
 plt.show()
 
 # %% 1D GRAPH: width vs L for different initial widths
+L_num =  11
 L_int_vec = np.logspace(np.log10(0.001* L0), np.log10(40* L0), L_num) 
 sigmaE_factors = [0.1, 0.25, 0.5, 1.5]
 sigmaE_values = [f * sigmaE for f in sigmaE_factors]
 sigmaE_labels = [rf"${f}\,\sigma_E$" for f in sigmaE_factors]
-N = 2**11
+N = 2**10
 results_sigmaE = []
 gamma_dB_per_cm = 0 
 for sigmaE_val, label in zip(sigmaE_values, sigmaE_labels):
@@ -981,10 +984,73 @@ df_sigmaE.to_csv("width_vs_L_for_different_sigmaE.csv", index=False)
 # Step 2: Load results from CSV and plot
 df_sigmaE_loaded = pd.read_csv("width_vs_L_for_different_sigmaE.csv")
 plt.figure(figsize=(8, 5))
-markers = ['o', '*', '^', 'D']
-for label, marker in zip(sigmaE_labels, markers):
+# Use a blue colormap, less extreme color scale for sigmaE
+
+norm = Normalize(vmin=min(sigmaE_factors), vmax=max(sigmaE_factors))
+cmap = cm.get_cmap("Blues")
+# Use a narrower range of the colormap (avoid very light/dark extremes)
+color_indices = np.linspace(0.2, 0.85, len(sigmaE_factors))
+colors_sigmaE = [cmap(ci) for ci in color_indices]
+# Map colors to labels in the same order as sigmaE_labels
+markers = ['P', '*', '^', 'D']
+for sigmaE_val, label, marker, color in zip(sigmaE_values, sigmaE_labels, markers, colors_sigmaE):
     df_plot = df_sigmaE_loaded[df_sigmaE_loaded["label"] == label]
-    plt.plot(df_plot["L_int"], df_plot["width"], marker=marker, linestyle='-', label=label, markersize=5)
+    legend_label = f"{sigmaE_val:.3f} eV"
+    plt.plot(df_plot["L_int"], df_plot["width"], marker=marker, linestyle='-', label=legend_label, markersize=5, color=color)
+plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
+plt.xlabel("Interaction length $L_{int}$ (m)")
+plt.ylabel("Final width (eV)")
+plt.yscale("log")
+plt.xscale("log")
+plt.title(r"Width vs $L_{int}$ for different initial widths $\sigma_E$")
+plt.legend()
+plt.tight_layout()
+plt.savefig("width_vs_L_for_different_sigmaE.svg", format="svg")
+plt.show()
+# %% 1D graph width vs  L loss and sigmaE:
+plt.figure(figsize=(8, 5))
+norm = Normalize(vmin=min(sigmaE_factors), vmax=max(sigmaE_factors))
+cmap = cm.get_cmap("Blues")
+color_indices = np.linspace(0.2, 0.85, len(sigmaE_factors))
+colors_sigmaE = [cmap(ci) for ci in color_indices]
+markers = ['x', '*', '^', 'D']
+
+for label, color in reversed(list(zip(loss_labels, colors))):
+    df_plot = df_loaded[df_loaded["label"] == label]
+    plt.plot(df_plot["L_int"], df_plot["width"], marker='.', linestyle='-', label=label, color=color)
+
+for sigmaE_val, label, marker, color in zip(sigmaE_values, sigmaE_labels, markers, colors_sigmaE):
+    df_plot = df_sigmaE_loaded[df_sigmaE_loaded["label"] == label]
+    legend_label = f"{sigmaE_val:.3f} eV"
+    plt.plot(df_plot["L_int"], df_plot["width"], marker=marker, linestyle='-', label=legend_label, markersize=5, color=color)
+
+plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
+plt.xlabel("Interaction length $L_{int}$ (m)")
+plt.ylabel("Final width (eV)")
+plt.yscale("log")
+plt.xscale("log")
+plt.title(r"Width vs $L_{int}$ for different initial widths $\sigma_E$")
+plt.legend()
+plt.tight_layout()
+plt.savefig("width_vs_L_for_different_sigmaE.svg", format="svg")
+plt.show()
+plt.figure(figsize=(8, 5))
+# Use a blue colormap, less extreme color scale for sigmaE
+
+norm = Normalize(vmin=min(sigmaE_factors), vmax=max(sigmaE_factors))
+cmap = cm.get_cmap("Blues")
+# Use a narrower range of the colormap (avoid very light/dark extremes)
+color_indices = np.linspace(0.2, 0.85, len(sigmaE_factors))
+colors_sigmaE = [cmap(ci) for ci in color_indices]
+# Map colors to labels in the same order as sigmaE_labels
+markers = ['x', '*', '^', 'D']
+for label, color in reversed(list(zip(loss_labels, colors))):
+    df_plot = df_loaded[df_loaded["label"] == label]
+    plt.plot(df_plot["L_int"], df_plot["width"], marker='.', linestyle='-', label=label, color=color)
+
+for label, marker, color in zip(sigmaE_labels, markers, colors_sigmaE):
+    df_plot = df_sigmaE_loaded[df_sigmaE_loaded["label"] == label]
+    plt.plot(df_plot["L_int"], df_plot["width"], marker=marker, linestyle='-', label=label, markersize=5, color=color)
 plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
 plt.xlabel("Interaction length $L_{int}$ (m)")
 plt.ylabel("Final width (eV)")
