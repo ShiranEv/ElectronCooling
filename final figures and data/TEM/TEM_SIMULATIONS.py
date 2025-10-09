@@ -1395,8 +1395,8 @@ plt.savefig("width_vs_L_for_different_sigmaE_and_loss.svg", format="svg")
 
 # 1D simulation: width vs initial sigmaE value (at fixed L_int, v0, omega0, loss)
 sigmaE_num_1d = 21
-
-sigmaE_values_1d = np.linspace(0.001 * sigmaE, 1.1* sigmaE, sigmaE_num_1d)
+L_int = 2 * L0  # fixed interaction length
+sigmaE_values_1d = np.linspace(0.001 * sigmaE, 1.4 * sigmaE, sigmaE_num_1d)
 widths_1D_sigmaE = np.zeros(len(sigmaE_values_1d))
 N = 2**10
 for i, sigmaE_val in enumerate(tqdm(sigmaE_values_1d, desc="Scanning sigmaE", position=0)):
