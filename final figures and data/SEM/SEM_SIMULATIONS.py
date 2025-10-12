@@ -920,7 +920,7 @@ results = []
 for gamma_dB_per_cm, label in zip(loss_values, loss_labels):
     for L_int_test in tqdm(L_int_vec, desc=f"Loss={gamma_dB_per_cm} dB/cm", leave=False):
         width = float(final_state_probability_density_loss(
-            N, L_int_test, sigmaE, v0, omega0,
+            N, L_int_test, sigmaE_loss_simulation, v0, omega0,
             vg, recoil, gamma_dB_per_cm
         )[5])
         results.append({
@@ -962,10 +962,10 @@ plt.show()
 # %% 1D GRAPH: width vs L for different initial widths
 L_num =  21
 L_int_vec = np.logspace(np.log10(0.5* L0), np.log10(400* L0), L_num) 
-sigmaE_factors = [ 0.25, 0.5, 0.75, 1]
+sigmaE_factors = [0.5, 0.75, 1]
 sigmaE_values = [f * sigmaE for f in sigmaE_factors]
 sigmaE_labels = [rf"${f}\,\sigma_E$" for f in sigmaE_factors]
-N = 2**12
+N = 2**8
 results_sigmaE = []
 gamma_dB_per_cm = 0 
 for sigmaE_val, label in zip(sigmaE_values, sigmaE_labels):
@@ -1018,7 +1018,8 @@ plt.figure(figsize=(8, 5))
 norm = Normalize(vmin=min(sigmaE_factors), vmax=max(sigmaE_factors))
 cmap = cm.get_cmap("Blues")
 color_indices = np.linspace(0.2, 0.85, len(sigmaE_factors))
-colors_sigmaE = [cmap(ci) for ci in color_indices]
+colors_sigmaE = [cmap(ci) for ci in color_indices[::-1]]
+
 markers = ['x', '*', '^', 'D']
 
 # Omit last two L_int points from all plots
@@ -1026,18 +1027,18 @@ omit_n = 2
 
 for label, color in reversed(list(zip(loss_labels, colors))):
     df_plot = df_loaded[df_loaded["label"] == label]
-    plt.plot(df_plot["L_int"][:-omit_n], df_plot["width"][:-omit_n]/sigmaE*2 * np.sqrt(2 * np.log(2)), marker='.', linestyle='-', label=label, color=color)
+    plt.plot(df_plot["L_int"][:-omit_n], df_plot["width"][:-omit_n]/sigmaE_loss_simulation*2 * np.sqrt(2 * np.log(2)), label=label, color=color)
 
-for sigmaE_val, label, marker, color in zip(sigmaE_values, sigmaE_labels, markers, colors_sigmaE):
+for sigmaE_val, label,  color in zip(sigmaE_values, sigmaE_labels,  colors_sigmaE):
     df_plot = df_sigmaE_loaded[df_sigmaE_loaded["label"] == label]
     legend_label = f"{sigmaE_val:.3f} eV"
-    plt.plot(df_plot["L_int"][:-omit_n], df_plot["width"][:-omit_n]/sigmaE_val* 2 * np.sqrt(2 * np.log(2)), marker=marker, linestyle='-', label=legend_label, markersize=5, color=color)
+    plt.plot(df_plot["L_int"][:-omit_n], df_plot["width"][:-omit_n]/sigmaE_val* 2 * np.sqrt(2 * np.log(2)),   label=legend_label, markersize=5, color=color)
 
 plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ ")
 plt.axhline(1, color="k", linestyle="--")
 
 plt.xlabel("Interaction length $L_{int}$ (m)")
-plt.ylabel("Final width (eV)")
+plt.ylabel("Final width/initial width (eV)")
 plt.yscale("log")
 plt.xscale("log")
 plt.title(r"Width vs $L_{int}$ for different initial widths $\sigma_E$")
