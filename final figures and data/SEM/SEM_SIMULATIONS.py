@@ -664,11 +664,11 @@ def L_threshold(initial_width, csv_path):
     return L_thresh
 # %%************************************************************SEM setup************************************************************%% # 
 # %% SEM setup 
-N =2**10
+N =2**9
 v0 = 0.1 * c  # electron velocity
 E0 = E_rel(v0)
 lambda0 = 500e-9
-omega0 = 2 * np.pi * c / lambda0  # central angular frequency (rad/s)
+omega0  = 2 * np.pi * c / lambda0  # central angular frequency (rad/s)
 L_int = 0.01
 sigmaE =  0.1 * hbar * omega0 / e
 L0 = 1.18 * 4 * (E0 * v0 / (sigmaE * e * omega0))   # optimal interaction length
@@ -908,30 +908,31 @@ plt.show()
 # fig.savefig("widths_2D_v0_L_SEM_comparison.svg", format="svg")
 
 # %% 1D GRAPH: width vs L for different losses
-L_num =  21
-sigmaE_loss_simulation = 0.25*sigmaE
-L_int_vec = np.logspace(np.log10(0.5* L0), np.log10(400* L0), L_num) 
+L_num = 21
+sigmaE_loss_simulation = 0.25 * sigmaE
+L_int_vec = np.logspace(np.log10(0.5 * L0), np.log10(400 * L0), L_num)
 loss_values = [0, 10, 30, 100]
 loss_labels = ["0 dB/cm", "10 dB/cm", "30 dB/cm", "100 dB/cm"]
-colors = ["tab:blue", "tab:orange", "tab:green", "tab:red"]
-N = 2**8
-# Run simulation and save results to CSV
-results = []
-for gamma_dB_per_cm, label in zip(loss_values, loss_labels):
-    for L_int_test in tqdm(L_int_vec, desc=f"Loss={gamma_dB_per_cm} dB/cm", leave=False):
-        width = float(final_state_probability_density_loss(
-            N, L_int_test, sigmaE_loss_simulation, v0, omega0,
-            vg, recoil, gamma_dB_per_cm
-        )[5])
-        results.append({
-            "loss": gamma_dB_per_cm,
-            "label": label,
-            "L_int": L_int_test,
-            "width": width
-        })
+colors = ["#003366", "tab:orange", "tab:green", "tab:red"]  # dark blue, orange, green, red
+N = 2**11
 
-df_widths_vs_L_loss = pd.DataFrame(results)
-df_widths_vs_L_loss.to_csv("width_vs_L_for_different_losses.csv", index=False)
+# # Run simulation and save results to CSV
+# results = []
+# for gamma_dB_per_cm, label in zip(loss_values, loss_labels):
+#     for L_int_test in tqdm(L_int_vec, desc=f"Loss={gamma_dB_per_cm} dB/cm", leave=False):
+#         width = float(final_state_probability_density_loss(
+#             N, L_int_test, sigmaE_loss_simulation, v0, omega0,
+#             vg, recoil, gamma_dB_per_cm
+#         )[5])
+#         results.append({
+#             "loss": gamma_dB_per_cm,
+#             "label": label,
+#             "L_int": L_int_test,
+#             "width": width
+#         })
+
+# df_widths_vs_L_loss = pd.DataFrame(results)
+# df_widths_vs_L_loss.to_csv("width_vs_L_for_different_losses.csv", index=False)
 
 # Load results from CSV and plot
 df_loaded = pd.read_csv("width_vs_L_for_different_losses.csv")
@@ -943,11 +944,9 @@ plt.figure(figsize=(8, 5))
 # Plot in reverse order so 0 dB/cm is on top (last plotted)
 for label, color in reversed(list(zip(loss_labels, colors))):
     df_plot = df_loaded[df_loaded["label"] == label]
-    plt.plot(df_plot["L_int"]/lambda_eff, df_plot["width"], marker='.', linestyle='-', label=label, color=color)
+    plt.plot(df_plot["L_int"] / lambda_eff, df_plot["width"], marker='.', linestyle='-', label=label, color=color)
 
-
-
-plt.axvline(L0/lambda_eff, color="k", linestyle="--", label=r"$L_0$ (optimal)")
+plt.axvline(L0 / lambda_eff, color="k", linestyle="--", label=r"$L_0$ (optimal)")
 plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")
 plt.xlabel("Interaction length $L_{int}$ (in units of $\\lambda_\\mathrm{eff}$)")
 plt.ylabel("Final width (same units as CSV)")
@@ -960,14 +959,14 @@ plt.savefig("width_vs_L_for_different_losses.svg", format="svg")
 plt.show()
 
 # %% 1D GRAPH: width vs L for different initial widths
-L_num =  21
-L_int_vec = np.logspace(np.log10(0.5* L0), np.log10(400* L0), L_num) 
+L_num = 21
+L_int_vec = np.logspace(np.log10(0.5 * L0), np.log10(400 * L0), L_num)
 sigmaE_factors = [0.5, 0.75, 1]
 sigmaE_values = [f * sigmaE for f in sigmaE_factors]
 sigmaE_labels = [rf"${f}\,\sigma_E$" for f in sigmaE_factors]
-N = 2**8
+N = 2**11
 results_sigmaE = []
-gamma_dB_per_cm = 0 
+gamma_dB_per_cm = 0
 for sigmaE_val, label in zip(sigmaE_values, sigmaE_labels):
     widths_vs_L = []
     for L_int_test in tqdm(L_int_vec, desc=f"σE={label}", leave=False):
@@ -991,18 +990,17 @@ df_sigmaE.to_csv("width_vs_L_for_different_sigmaE.csv", index=False)
 df_sigmaE_loaded = pd.read_csv("width_vs_L_for_different_sigmaE.csv")
 plt.figure(figsize=(8, 5))
 # Use a blue colormap, less extreme color scale for sigmaE
-
 norm = Normalize(vmin=min(sigmaE_factors), vmax=max(sigmaE_factors))
 cmap = cm.get_cmap("Blues")
 # Use a narrower range of the colormap (avoid very light/dark extremes)
 color_indices = np.linspace(0.2, 0.85, len(sigmaE_factors))
 colors_sigmaE = [cmap(ci) for ci in color_indices]
 # Map colors to labels in the same order as sigmaE_labels
-
 for sigmaE_val, label, color in zip(sigmaE_values, sigmaE_labels, colors_sigmaE):
     df_plot = df_sigmaE_loaded[df_sigmaE_loaded["label"] == label]
     legend_label = f"{sigmaE_val:.3f} eV"
-    plt.plot(df_plot["L_int"], df_plot["width"]/sigmaE_val* 2 * np.sqrt(2 * np.log(2)), marker=".", linestyle='-', label=legend_label, markersize=5, color=color)
+    plt.plot(df_plot["L_int"], df_plot["width"] / sigmaE_val * 2 * np.sqrt(2 * np.log(2)),
+             marker=".", linestyle='-', label=legend_label, markersize=5, color=color)
 plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ (optimal)")
 plt.xlabel("Interaction length $L_{int}$ (m)")
 plt.ylabel("Final width (eV)")
@@ -1013,31 +1011,52 @@ plt.legend()
 plt.tight_layout()
 plt.savefig("width_vs_L_for_different_sigmaE.svg", format="svg")
 plt.show()
-# %% 1D graph width vs  L loss and sigmaE:
+
+# %% 1D graph width vs L loss and sigmaE:
+L_num = 21
+sigmaE = 0.1 * hbar * omega0 / e
+sigmaE_loss_simulation = 0.25 * sigmaE
+L_int_vec = np.logspace(np.log10(0.5 * L0), np.log10(400 * L0), L_num)
+loss_values = [0, 10, 30, 100]
+loss_labels = ["0 dB/cm", "10 dB/cm", "30 dB/cm", "100 dB/cm"]
+colors = ["#003366", "tab:orange", "tab:green", "tab:red"]  # dark blue, orange, green, red
+df_sigmaE_loaded = pd.read_csv("width_vs_L_for_different_sigmaE.csv")
+df_loaded = pd.read_csv("width_vs_L_for_different_losses.csv")
+sigmaE_factors = [0.5, 0.75, 1]
+sigmaE_values = [f * sigmaE for f in sigmaE_factors]
+sigmaE_labels = [rf"${f}\,\sigma_E$" for f in sigmaE_factors]
+lambda_eff = 2 * np.pi * v0 / omega0
+print(f"Effective wavelength: {lambda_eff*1e9:.3f} nm")
 plt.figure(figsize=(8, 5))
 norm = Normalize(vmin=min(sigmaE_factors), vmax=max(sigmaE_factors))
 cmap = cm.get_cmap("Blues")
 color_indices = np.linspace(0.2, 0.85, len(sigmaE_factors))
 colors_sigmaE = [cmap(ci) for ci in color_indices[::-1]]
-
 markers = ['x', '*', '^', 'D']
 
-# Omit last two L_int points from all plots
-omit_n = 2
+# Omit last three L_int points from all plots
+omit_n = 3
 
 for label, color in reversed(list(zip(loss_labels, colors))):
     df_plot = df_loaded[df_loaded["label"] == label]
-    plt.plot(df_plot["L_int"][:-omit_n], df_plot["width"][:-omit_n]/sigmaE_loss_simulation*2 * np.sqrt(2 * np.log(2)), label=label, color=color)
+    plt.plot(
+        df_plot["L_int"][:-omit_n]/lambda_eff,
+        df_plot["width"][:-omit_n] / sigmaE_loss_simulation * 2 * np.sqrt(2 * np.log(2)),
+        marker='.', linestyle='-', label=label, color=color
+    )
 
-for sigmaE_val, label,  color in zip(sigmaE_values, sigmaE_labels,  colors_sigmaE):
+for sigmaE_val, label, color in zip(sigmaE_values, sigmaE_labels, colors_sigmaE):
     df_plot = df_sigmaE_loaded[df_sigmaE_loaded["label"] == label]
     legend_label = f"{sigmaE_val:.3f} eV"
-    plt.plot(df_plot["L_int"][:-omit_n], df_plot["width"][:-omit_n]/sigmaE_val* 2 * np.sqrt(2 * np.log(2)),   label=legend_label, markersize=5, color=color)
+    plt.plot(
+        df_plot["L_int"][:-omit_n]/lambda_eff,
+        df_plot["width"][:-omit_n] / sigmaE_val * 2 * np.sqrt(2 * np.log(2)),
+        marker='.', linestyle='-', label=legend_label, markersize=5, color=color
+    )
 
-plt.axvline(L0, color="k", linestyle="--", label=r"$L_0$ ")
+plt.axvline(L0/lambda_eff, color="k", linestyle="--", label=r"$L_0$ ")
 plt.axhline(1, color="k", linestyle="--")
-
-plt.xlabel("Interaction length $L_{int}$ (m)")
+plt.xlabel("Interaction length $L_{int}$ (\lambda_eff)")
 plt.ylabel("Final width/initial width (eV)")
 plt.yscale("log")
 plt.xscale("log")
@@ -1047,13 +1066,12 @@ plt.tight_layout()
 plt.savefig("width_vs_L_for_different_sigmaE_and_loss.svg", format="svg")
 plt.show()
 plt.figure(figsize=(8, 5))
-# Use a blue colormap, less extreme color scale for sigmaE
-
 # %% 1D GRAPH: width vs L for different omega0
 # Create L_int_vec and v0_vec in logscale
 # L_int_vec: logarithmically spaced from 0.001*L0 to 15*L0, 30 points
 L_int_vec = np.logspace(np.log10(0.001 * L0), np.log10(15 * L0), 30)
-
+lambda_eff = 2 * np.pi * v0 / omega0
+print(f"Effective wavelength: {lambda_eff*1e9:.3f} nm")
 # Add more omega0 values for a broader sweep
 omega0_factors = [0.3, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
 omega0_values = [f * omega0 for f in omega0_factors]
@@ -1086,8 +1104,8 @@ df_omega0_loaded = pd.read_csv("width_vs_L_for_different_omega0.csv")
 plt.figure(figsize=(9, 6))
 for label, color in zip(omega0_labels, colors_omega0):
     df_plot = df_omega0_loaded[df_omega0_loaded["label"] == label]
-    plt.plot(df_plot["L_int"], df_plot["width"], marker='.', linestyle='-', label=label, color=color)
-plt.xlabel("Interaction length $L_{int}$ (m)")
+    plt.plot(df_plot["L_int"]/lambda_eff, df_plot["width"], marker='.', linestyle='-', label=label, color=color)
+plt.xlabel("Interaction length $L_{int}$ (lambda_eff)")
 plt.ylabel("Final width (eV)")
 plt.yscale("log")
 plt.xscale("log")
@@ -1221,16 +1239,17 @@ plt.show()
 # %% 2D graph: width vs v0 and omega0
 omega0_num = 41
 v0_num = 41
-v0_vec = np.linspace(0.99, 1.01, v0_num) * vg
+v0_vec = np.linspace(0.99, 1.01, v0_num) * v0
+
 
 # omega0_values_2d: logarithmically spaced from visible (light) to x-ray photon energies
 # Visible: ~2.5e15 rad/s (500 nm), X-ray: ~1e19 rad/s (0.1 nm)
-omega0_values_2d = np.logspace(np.log10(2.5e15), np.log10(10*omega0), omega0_num)
+omega0_values_2d = np.logspace(np.log10(2.5e15), np.log10(15*omega0), omega0_num)
 omega0_factors_2d = omega0_values_2d / omega0
 omega0_labels_2d = [rf"${val/omega0:.2f}\,\omega_0$" for val in omega0_factors_2d]
 widths_2D_omega0_v0 = np.zeros((len(omega0_values_2d), len(v0_vec)))
 
-N = 2**8
+N = 2**11
 for i, omega0_val in enumerate(omega0_values_2d):
     for j, v0_test in enumerate(tqdm(v0_vec, desc=f"ω0={omega0_val:.2e}", leave=False)):
         widths_2D_omega0_v0[i, j] = float(final_state_probability_density(
@@ -1239,8 +1258,25 @@ for i, omega0_val in enumerate(omega0_values_2d):
         )[5])
 
 
-# Use log red-blue coloring (SymLogNorm) as before
-finite_vals = widths_2D_omega0_v0[np.isfinite(widths_2D_omega0_v0)]
+# Save the 2D omega0-v0 width data to CSV after simulation
+df_omega0_v0 = pd.DataFrame(
+    widths_2D_omega0_v0,
+    index=[f"{val:.6e}" for val in omega0_values_2d],
+    columns=[f"{val:.6e}" for val in v0_vec]
+)
+df_omega0_v0.index.name = "omega0"
+df_omega0_v0.columns.name = "v0"
+csv_filename = "widths_2D_omega0_v0_less_resolution.csv"
+df_omega0_v0.to_csv(csv_filename)
+
+# --- Plot from saved CSV file ---
+df_loaded = pd.read_csv(csv_filename, index_col=0)
+widths_2D_omega0_v0_loaded = df_loaded.to_numpy(dtype=float)
+omega0_loaded = df_loaded.index.to_numpy(dtype=float)
+v0_loaded = df_loaded.columns.to_numpy(dtype=float)
+
+# Use log red-blue coloring (SymLogNorm)
+finite_vals = widths_2D_omega0_v0_loaded[np.isfinite(widths_2D_omega0_v0_loaded)]
 Wmin = float(np.nanmin(finite_vals))
 Wmax = float(np.nanmax(finite_vals))
 linthresh = 0.08 * max(abs(Wmin-initial_width), abs(Wmax - initial_width))
@@ -1248,17 +1284,17 @@ nrm = SymLogNorm(linthresh=linthresh, vmin=Wmin, vmax=Wmax, base=10)
 cmap = "RdBu_r"
 plt.figure(figsize=(8, 5))
 im = plt.imshow(
-    widths_2D_omega0_v0,
+    widths_2D_omega0_v0_loaded,
     aspect="auto",
     origin="lower",
-    extent=[v0_vec.min()/c, v0_vec.max()/c, 0, len(omega0_values_2d)-1],
+    extent=[float(v0_loaded.min())/c, float(v0_loaded.max())/c, 0, len(omega0_loaded)-1],
     cmap=cmap,
     norm=nrm
 )
 # Set fewer yticks for omega0 labels (e.g., 6 evenly spaced)
 num_yticks = 6
-ytick_indices = np.linspace(0, len(omega0_values_2d)-1, num_yticks, dtype=int)
-ytick_vals = [omega0_values_2d[i] for i in ytick_indices]
+ytick_indices = np.linspace(0, len(omega0_loaded)-1, num_yticks, dtype=int)
+ytick_vals = [float(omega0_loaded[i]) for i in ytick_indices]
 ytick_labels = [f"{val/omega0:.2f} $\omega_0$" for val in ytick_vals]
 plt.yticks(
     ticks=ytick_indices,
@@ -1266,7 +1302,7 @@ plt.yticks(
 )
 # Set xticks for v0/c, evenly spaced
 num_xticks = 6
-xtick_vals = np.linspace(v0_vec.min()/c, v0_vec.max()/c, num_xticks)
+xtick_vals = np.linspace(float(v0_loaded.min())/c, float(v0_loaded.max())/c, num_xticks)
 plt.xticks(ticks=xtick_vals, labels=[f"{x:.6f}" for x in xtick_vals])
 plt.xlabel("Electron velocity $v_0$ ($c$)")
 plt.ylabel("Central frequency $\omega_0$")
@@ -1275,18 +1311,10 @@ plt.axvline(vg/c, color="red", linestyle="--", label=r"$v_0 = v_g$")
 plt.legend()
 cbar = plt.colorbar(im, label="Final width (eV)")
 plt.tight_layout()
+plt.savefig("widths_2D_omega0_v0_less_resolution.svg", format="svg")
 plt.show()
 
-# Save the 2D omega0-v0 width data to CSV
-df_omega0_v0 = pd.DataFrame(
-    widths_2D_omega0_v0,
-    index=[f"{val:.6e}" for val in omega0_values_2d],
-    columns=[f"{val:.6e}" for val in v0_vec]
-)
-df_omega0_v0.index.name = "omega0"
-df_omega0_v0.columns.name = "v0"
-df_omega0_v0.to_csv("widths_2D_omega0_v0_less_resolution.csv")
-# Save the last 2D omega0-v0 width figure as SVG
-plt.savefig("widths_2D_omega0_v0_less_resolution.svg", format="svg")
 
 
+# %%
+``
