@@ -1249,25 +1249,25 @@ omega0_factors_2d = omega0_values_2d / omega0
 omega0_labels_2d = [rf"${val/omega0:.2f}\,\omega_0$" for val in omega0_factors_2d]
 widths_2D_omega0_v0 = np.zeros((len(omega0_values_2d), len(v0_vec)))
 
-N = 2**11
-for i, omega0_val in enumerate(omega0_values_2d):
-    for j, v0_test in enumerate(tqdm(v0_vec, desc=f"ω0={omega0_val:.2e}", leave=False)):
-        widths_2D_omega0_v0[i, j] = float(final_state_probability_density(
-            N, L_int, sigmaE, v0_test, omega0_val,
-            vg, recoil, gamma_dB_per_cm
-        )[5])
+# N = 2**11
+# for i, omega0_val in enumerate(omega0_values_2d):
+#     for j, v0_test in enumerate(tqdm(v0_vec, desc=f"ω0={omega0_val:.2e}", leave=False)):
+#         widths_2D_omega0_v0[i, j] = float(final_state_probability_density(
+#             N, L_int, sigmaE, v0_test, omega0_val,
+#             vg, recoil, gamma_dB_per_cm
+#         )[5])
 
 
-# Save the 2D omega0-v0 width data to CSV after simulation
-df_omega0_v0 = pd.DataFrame(
-    widths_2D_omega0_v0,
-    index=[f"{val:.6e}" for val in omega0_values_2d],
-    columns=[f"{val:.6e}" for val in v0_vec]
-)
-df_omega0_v0.index.name = "omega0"
-df_omega0_v0.columns.name = "v0"
+# # Save the 2D omega0-v0 width data to CSV after simulation
+# df_omega0_v0 = pd.DataFrame(
+#     widths_2D_omega0_v0,
+#     index=[f"{val:.6e}" for val in omega0_values_2d],
+#     columns=[f"{val:.6e}" for val in v0_vec]
+# )
+# df_omega0_v0.index.name = "omega0"
+# df_omega0_v0.columns.name = "v0"
 csv_filename = "widths_2D_omega0_v0_less_resolution.csv"
-df_omega0_v0.to_csv(csv_filename)
+# df_omega0_v0.to_csv(csv_filename)
 
 # --- Plot from saved CSV file ---
 df_loaded = pd.read_csv(csv_filename, index_col=0)
