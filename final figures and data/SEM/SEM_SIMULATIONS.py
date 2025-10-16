@@ -1012,6 +1012,71 @@ plt.tight_layout()
 plt.savefig("width_vs_L_for_different_sigmaE.svg", format="svg")
 plt.show()
 
+# %% saturation width :
+grid_factor = 4
+L_num = 21
+
+sigmaE = 0.1 * hbar * omega0 / e
+sigmaE_loss_simulation = 0.25 * sigmaE
+
+
+energy_span = grid_factor * sigmaE * e  # J
+omega_span = grid_factor * sigmaE * e  / hbar  # rad/s
+
+L_int_vec = np.logspace(np.log10(0.5 * L0), np.log10(400 * L0), L_num)
+loss_values = [0, 10, 30, 100]
+loss_labels = ["0 dB/cm", "10 dB/cm", "30 dB/cm", "100 dB/cm"]
+colors = ["#003366", "tab:orange", "tab:green", "tab:red"]  # dark blue, orange, green, red
+N = 2**11
+
+x = np.linspace(-omega_span, omega_span, N)
+dx = x[1] - x[0]
+δE_f = np.linspace(-energy_span, energy_span, N)  # J
+dE = δE_f[1] - δE_f[0]
+x_grid, δE_f_grid = np.meshgrid(x, δE_f, indexing="ij")
+energy_span = max(abs(δE_f))
+nyquist = nyquist_rate(v0, L_int, energy_span)
+
+# Omit last three L_int points from all plots
+omit_n = 3
+
+for label, color in reversed(list(zip(loss_values, colors))):
+    width_delta_sinc =[]
+    for L_int_test in tqdm(L_int_vec, desc=f"Loss={label} dB/cm", leave=False):
+        # Losses and Lorentzian width
+        alpha_np_per_cm = np.log(10)/10.0 * label   # power → Nepers (power)
+        alpha_amp_per_cm = 0.5 * alpha_np_per_cm              # amplitude Nepers/cm
+        alpha_np_per_m  = alpha_amp_per_cm * 100.0
+        Gamma = vg * alpha_np_per_m
+        if Gamma <= 0:
+            Gamma = 1e-24
+        L_eff = vg/Gamma if Gamma > 0 else L_int_test
+        print(f"Gamma: {Gamma:.3e} 1/s, L_eff: {L_eff:.3e} m")
+        kernel = np.sinc(((x_grid / vg) * (L_int_test / 2) - (0.5 * (omega0 / (v0 * E0)) + 1 / (hbar * vg)) * (L_int_test / 2.0) * δE_f_grid) / (2 * np.pi))
+
+        # Lorentzian L_Γ(u) = L_Γ(ω' - ω)
+        lorentz = (1 / np.pi) * (Gamma / 2.0) / ((x_grid**2) + (Gamma / 2.0) ** 2)  # (M_u, 1)
+
+        # Integrand (broadcasts lorentz to (M_u, N))
+        integrand = kernel**2 * lorentz  # (M_u, N)
+
+            # Integrate over u using Riemann sum
+        integral_over_x = np.sum(integrand, axis=0) * dx  # (N,)
+        # Normalize integral (should be close to 1)
+        integral_norm = integral_over_x / np.sum(integral_over_x) * dE
+        # plt.plot(δE_f, integral_norm)
+        # plt.show()
+        width_delta_sinc.append(compute_FWHM(δE_f,integral_norm)/e)
+
+    plt.plot(
+        
+        np.array() / sigmaE_loss_simulation * 2 * np.sqrt(2 * np.log(2)),
+        marker='+', linestyle='--', label=loss_labels
+    )
+
+
+
+
 # %% 1D graph width vs L loss and sigmaE:
 L_num = 21
 sigmaE = 0.1 * hbar * omega0 / e
@@ -1066,6 +1131,12 @@ plt.tight_layout()
 plt.savefig("width_vs_L_for_different_sigmaE_and_loss.svg", format="svg")
 plt.show()
 plt.figure(figsize=(8, 5))
+
+
+
+
+
+
 # %% 1D GRAPH: width vs L for different omega0
 # Create L_int_vec and v0_vec in logscale
 # L_int_vec: logarithmically spaced from 0.001*L0 to 15*L0, 30 points
@@ -1316,5 +1387,4 @@ plt.show()
 
 
 
-# %%
 ``
