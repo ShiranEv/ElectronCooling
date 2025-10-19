@@ -23,7 +23,6 @@ from matplotlib.colors import SymLogNorm
 from matplotlib import cm
 from matplotlib.colors import Normalize
 # %% functions :
-
 # Definitions
 def k(E):
     return np.sqrt(2 * m * E) / hbar
@@ -664,7 +663,7 @@ def L_threshold(initial_width, csv_path):
     return L_thresh
 # %%************************************************************SEM setup************************************************************%% # 
 # %% SEM setup 
-N =2**9
+N =2**8
 v0 = 0.1 * c  # electron velocity
 E0 = E_rel(v0)
 lambda0 = 500e-9
@@ -699,17 +698,12 @@ plt.title(f"Photon Frequency Distribution\nInitial width: {initial_width:.3g} eV
 plt.legend()
 plt.tight_layout()
 plt.show()
-
 # %% 2D simulation: v0 vs L for different losses:
 L_num = 41
 v0_num = 41
 
-L_int_vec = np.logspace(np.log10(0.001), np.log10(13), L_num) * L0
-v0_vec = np.logspace(np.log10(0.9995), np.log10(1.0005), v0_num) * vg
-# v0_vec = np.linspace(0.9995, 1.0005, v0_num) * vg
-widths_2D_tem = np.zeros((len(L_int_vec), len(v0_vec)))
-gamma_dB_per_cm = 30
-N = 2**10
+    
+N = 2**8
 L0 = 1.18 * 4 * (E0 * v0 / (sigmaE * e * omega0))   # optimal interaction length
 vg = v_g_func(omega0, v0)
 recoil = recoil_func(omega0, v0)
@@ -1013,70 +1007,127 @@ plt.savefig("width_vs_L_for_different_sigmaE.svg", format="svg")
 plt.show()
 
 # %% saturation width :
-grid_factor = 4
-L_num = 21
+def saturation_width(N, L_int, sigmaE, v0, omega0, vg, recoil, gamma_dB_per_cm,
+                     ):
+    T=20.0
+    M=2**12
+    # --- δE_f axis (Joules) ---
+    grid_factor = 4
+    sigmaE_J = sigmaE * e
+    energy_span = grid_factor * sigmaE_J
+    dEf = np.linspace(-energy_span, energy_span, N)
+    dE  = dEf[1] - dEf[0]
+    dEf_grid = np.broadcast_to(dEf[None, :], (M, N))  # for vectorization
 
-sigmaE = 0.1 * hbar * omega0 / e
-sigmaE_loss_simulation = 0.25 * sigmaE
+    # --- local E0 ---
+    E0 = E_rel(v0)
 
+    # --- dB/cm -> amplitude Nepers/m ---
+    alpha_pow_db_per_m = gamma_dB_per_cm * 100.0                    # dB/m (power)
+    alpha_pow_np_per_m = (np.log(10)/10.0) * alpha_pow_db_per_m     # Np/m (power)
+    kappa = 0.5 * alpha_pow_np_per_m                                # Nepers/m (amplitude)
 
-energy_span = grid_factor * sigmaE * e  # J
-omega_span = grid_factor * sigmaE * e  / hbar  # rad/s
+    # --- Lorentz FWHM in angular freq: Γ = 2 v_g κ (rad/s) ---
+    Gamma = 2.0 * vg * kappa
 
-L_int_vec = np.logspace(np.log10(0.5 * L0), np.log10(400 * L0), L_num)
+    # --- avoid Γ=0 exactly (delta-like); pick tiny floor tied to sinc spacing ---
+    # sinc^2 lobes spacing ~ 2π v_g / L_int in ω; take a small fraction as floor
+    omega_lobe = 2.0 * np.pi * vg / max(L_int, 1e-16)
+    Gamma_eff = max(Gamma, 1e-6 * omega_lobe)
+
+    # --- scaled variable t in [-T, T], ω = ωc + Γ_eff t ---
+    t = np.linspace(-T, T, M)
+    dt = t[1] - t[0]
+    t_grid = np.broadcast_to(t[:, None], (M, N))
+
+    # center frequency ωc for each δE_f
+    omega_c = (dEf / hbar)[None, :]
+
+    # angular frequency grid using scaled substitution
+    omega = omega_c + Gamma_eff * t_grid
+
+    # --- Lorentzian weight becomes Γ-independent in t-domain ---
+    # w(t) = (1/π) * (1/2) / (t^2 + (1/2)^2)
+    w_t = (1.0 / np.pi) * 0.5 / (t_grid**2 + 0.25)
+
+    # --- sinc^2 coupling (dimensionless u) ---
+    S_coeff = (0.5 * (omega0 / (v0 * E0)) + 1.0 / (hbar * vg)) * (L_int / 2.0)
+    u = (omega / vg) * (L_int / 2.0) - S_coeff * dEf_grid
+    sinc2 = np.sinc(u / np.pi)**2
+
+    # --- integrate over t (since dω = Γ_eff dt was absorbed analytically) ---
+    # (see derivation: L(ω)dω -> w(t) dt)
+    integrand = sinc2 * w_t
+    kernel_E = np.sum(integrand, axis=0) * dt  # function of δE_f
+
+    # --- normalize over δE_f (area = 1) ---
+    area = np.sum(kernel_E) * dE
+    if area <= 0 or not np.isfinite(area):
+        raise RuntimeError("Kernel normalization failed; check parameters.")
+    kernel_E /= area
+
+    # --- FWHM in eV ---
+    width_eV = compute_FWHM(dEf, kernel_E) / e
+    return dEf / e, kernel_E, width_eV
+
+gammas = [0, 10, 100]  # dB/cm
+plt.figure()
+for g in gammas:
+    dEf_eV, ker, w = saturation_width(N, L_int, sigmaE, v0, omega0, vg, recoil, g)
+    plt.plot(dEf_eV, ker, label=f"{g} dB/cm, FWHM={w:.3g} eV")
+N = 2**11
+plt.xlabel(r"Energy deviation $\delta E_f$ (eV)")  # raw string avoids '\d' warning
+plt.ylabel("Probability density")
+plt.title("Saturation kernel vs. waveguide loss")
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+L_num=21
+sigmaE_loss_simulation = 0.25 * sigmaE  
+initial_width = sigmaE_loss_simulation * 2 * np.sqrt(2 * np.log(2))
+L_int_vec = np.logspace(np.log10(0.00005 * L0), np.log10(300 * L0), L_num)
 loss_values = [0, 10, 30, 100]
 loss_labels = ["0 dB/cm", "10 dB/cm", "30 dB/cm", "100 dB/cm"]
 colors = ["#003366", "tab:orange", "tab:green", "tab:red"]  # dark blue, orange, green, red
-N = 2**11
 
-x = np.linspace(-omega_span, omega_span, N)
-dx = x[1] - x[0]
-δE_f = np.linspace(-energy_span, energy_span, N)  # J
-dE = δE_f[1] - δE_f[0]
-x_grid, δE_f_grid = np.meshgrid(x, δE_f, indexing="ij")
-energy_span = max(abs(δE_f))
-nyquist = nyquist_rate(v0, L_int, energy_span)
 
-# Omit last three L_int points from all plots
-omit_n = 3
 
-for label, color in reversed(list(zip(loss_values, colors))):
-    width_delta_sinc =[]
-    for L_int_test in tqdm(L_int_vec, desc=f"Loss={label} dB/cm", leave=False):
-        # Losses and Lorentzian width
-        alpha_np_per_cm = np.log(10)/10.0 * label   # power → Nepers (power)
-        alpha_amp_per_cm = 0.5 * alpha_np_per_cm              # amplitude Nepers/cm
-        alpha_np_per_m  = alpha_amp_per_cm * 100.0
-        Gamma = vg * alpha_np_per_m
-        if Gamma <= 0:
-            Gamma = 1e-24
-        L_eff = vg/Gamma if Gamma > 0 else L_int_test
-        print(f"Gamma: {Gamma:.3e} 1/s, L_eff: {L_eff:.3e} m")
-        kernel = np.sinc(((x_grid / vg) * (L_int_test / 2) - (0.5 * (omega0 / (v0 * E0)) + 1 / (hbar * vg)) * (L_int_test / 2.0) * δE_f_grid) / (2 * np.pi))
-
-        # Lorentzian L_Γ(u) = L_Γ(ω' - ω)
-        lorentz = (1 / np.pi) * (Gamma / 2.0) / ((x_grid**2) + (Gamma / 2.0) ** 2)  # (M_u, 1)
-
-        # Integrand (broadcasts lorentz to (M_u, N))
-        integrand = kernel**2 * lorentz  # (M_u, N)
-
-            # Integrate over u using Riemann sum
-        integral_over_x = np.sum(integrand, axis=0) * dx  # (N,)
-        # Normalize integral (should be close to 1)
-        integral_norm = integral_over_x / np.sum(integral_over_x) * dE
-        # plt.plot(δE_f, integral_norm)
-        # plt.show()
-        width_delta_sinc.append(compute_FWHM(δE_f,integral_norm)/e)
-
+results = []
+for gamma_dB_per_cm, label in zip(loss_values, loss_labels):
+    for L_int_test in tqdm(L_int_vec, desc=f"Loss={gamma_dB_per_cm} dB/cm", leave=False):
+        width = float(saturation_width(
+            N, L_int_test, sigmaE, v0, omega0,
+            vg, recoil, gamma_dB_per_cm
+        )[2])
+        results.append({
+            "loss": gamma_dB_per_cm,
+            "label": label,
+            "L_int": L_int_test,
+            "width": width
+        })
+# Plot saturation width vs L for different losses
+plt.figure(figsize=(8, 5))
+for label, color in reversed(list(zip(loss_labels, colors))):
+    df_plot = pd.DataFrame([r for r in results if r["label"] == label])
     plt.plot(
-        
-        np.array() / sigmaE_loss_simulation * 2 * np.sqrt(2 * np.log(2)),
-        marker='+', linestyle='--', label=loss_labels
+        df_plot["L_int"] ,
+        df_plot["width"] / initial_width,
+        marker='.', linestyle='-', label=label, color=color
     )
+# plt.axvline(L0 / lambda_eff, color="k", linestyle="--", label=r"$L_0$ (optimal)")
+plt.xlabel("Interaction length $L_{int}$ (in units of $\\lambda_\\mathrm{eff}$)")
+plt.ylabel("Saturation width (eV)")
+plt.yscale("log")
+plt.xscale("log")
+plt.title(r"Saturation width vs $L_{int}$ for $v_0 = v_g$ at different losses")
+plt.legend()
 
-
-
-
+plt.tight_layout()
+plt.savefig("saturation_width_vs_L_for_different_losses.svg", format="svg")
+plt.show()
+df_widths_vs_L_loss = pd.DataFrame(results)
+df_widths_vs_L_loss.to_csv("width_vs_L_for_different_losses_saturation_width.csv", index=False)
 # %% 1D graph width vs L loss and sigmaE:
 L_num = 21
 sigmaE = 0.1 * hbar * omega0 / e
