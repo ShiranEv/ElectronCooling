@@ -702,7 +702,7 @@ plt.show()
 L_num = 41
 v0_num = 41
 
-    
+L_int_vec = np.linspace(0.005, 0.1, L_num)
 N = 2**8
 L0 = 1.18 * 4 * (E0 * v0 / (sigmaE * e * omega0))   # optimal interaction length
 vg = v_g_func(omega0, v0)
@@ -1106,6 +1106,7 @@ for gamma_dB_per_cm, label in zip(loss_values, loss_labels):
             "L_int": L_int_test,
             "width": width
         })
+
 # Plot saturation width vs L for different losses
 plt.figure(figsize=(8, 5))
 for label, color in reversed(list(zip(loss_labels, colors))):
