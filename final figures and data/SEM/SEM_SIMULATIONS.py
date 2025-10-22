@@ -22,7 +22,7 @@ import csv
 from matplotlib.colors import SymLogNorm
 from matplotlib import cm
 from matplotlib.colors import Normalize
-# %% functions :
+# # %% functions :
 # Definitions
 def k(E):
     return np.sqrt(2 * m * E) / hbar
@@ -701,13 +701,13 @@ plt.show()
 # %% 2D simulation: v0 vs L for different losses:
 L_num = 41
 v0_num = 41
-
-L_int_vec = np.linspace(0.005, 0.1, L_num)
 N = 2**8
 L0 = 1.18 * 4 * (E0 * v0 / (sigmaE * e * omega0))   # optimal interaction length
 vg = v_g_func(omega0, v0)
 recoil = recoil_func(omega0, v0)
 _rows_tem = []
+
+L_int_vec = np.linspace(0.001, 22, L_num)*L0  # m
 for i, L_int_test in enumerate(tqdm(L_int_vec, desc="Scanning L_int (TEM)", position=0)):
     print(f"Scanning L_int = {L_int_test:.5f} m")
     for j, v0_test in enumerate(tqdm(v0_vec, desc=f"Scanning v_0 for L_int={L_int_test:.5f}", leave=False, position=1)):
@@ -718,17 +718,43 @@ for i, L_int_test in enumerate(tqdm(L_int_vec, desc="Scanning L_int (TEM)", posi
         widths_2D_tem[i, j] = width
         _rows_tem.append((float(L_int_test), float(v0_test), width))
 # Save to CSV
-ACCUM_CSV_SEM = "widths_2D_v0_L_SEM_30_log_dB.csv"
-df_tem = pd.DataFrame(_rows_tem, columns=["L_int_m", "v_0_m_per_s", "width"])
-df_tem.to_csv(ACCUM_CSV_SEM, index=False)
-L_threshold = L_int_vec[np.argmin(np.abs(widths_2D_tem[:, int(np.floor(v0_num/2))] - initial_width))]
+# ACCUM_CSV_SEM = "widths_2D_v0_L_SEM_30_log_dB.csv"
+# df_tem = pd.DataFrame(_rows_tem, columns=["L_int_m", "v_0_m_per_s", "width"])
+# df_tem.to_csv(ACCUM_CSV_SEM, index=False)
+# L_threshold = L_int_vec[np.argmin(np.abs(widths_2D_tem[:, int(np.floor(v0_num/2))] - initial_width))]
+# %% ADDITION TO 2D GRAPH:
+gamma_dB_per_cm = 100
+ACCUM_CSV_SEM = "widths_2D_v0_L_SEM_100_lin_dB_FULL.csv"
+df_loaded = pd.read_csv(ACCUM_CSV_SEM)
+delta_L = 2.147811e-04
+L_int_addition = np.arange(8.59190341e-03 + delta_L, 0.01 + delta_L, delta_L)
+v0_vec_rounded = np.sort(df_loaded["v_0_m_per_s"].unique())
+v0_vec = v0_vec_rounded
+_rows_tem_addition = []
+N = 2**10
+L0 = 1.18 * 4 * (E0 * v0 / (sigmaE * e * omega0))   # optimal interaction length
+vg = v_g_func(omega0, v0)
+recoil = recoil_func(omega0, v0)
+for i, L_int_test in enumerate(tqdm(L_int_addition, desc="Scanning L_int (SEM) - Addition", position=0)):
+    print(f"Scanning L_int = {L_int_test:.5f} m")
+    for j, v0_test in enumerate(tqdm(v0_vec, desc=f"Scanning v_0 for L_int={L_int_test:.5f}", leave=False, position=1)):
+        width = float(final_state_probability_density_loss(
+            N, L_int_test, sigmaE, v0_test, omega0,
+            vg, recoil, gamma_dB_per_cm
+        )[5])
+        _rows_tem_addition.append((float(L_int_test), float(v0_test), width))
 
+# # Append to existing CSV
+df_tem_addition = pd.DataFrame(_rows_tem_addition, columns=["L_int_m", "v_0_m_per_s", "width"])
+df_tem_addition.to_csv(ACCUM_CSV_SEM, mode='a', header=False, index=False)
 # %% 
 # Load
-df_loaded = pd.read_csv("widths_2D_v0_L_SEM_0_lin_dB.csv")
+df_loaded = pd.read_csv("widths_2D_v0_L_SEM_0_lin_dB_FULL_MERGED.csv")
 
 # Round to align keys (same rounding as vectors)
 L_int_vec_rounded = np.sort(df_loaded["L_int_m"].unique())
+# Calculate delta_L for L_int_vec
+
 v0_vec_rounded = np.sort(df_loaded["v_0_m_per_s"].unique())
 
 # Keep only expected coordinates
@@ -788,12 +814,78 @@ plt.title("Width vs L_int and v0 (SEM setup), loss = 0 dB/cm")
 plt.legend()
 plt.tight_layout()
 plt.show()
-# %% comparison
+def merge_width_csvs(file_full, file_partial, output_file=None, tol=1e-12):
+    """
+    Merge two width CSV files (FULL and PARTIAL) into a reconciled dataset
+    by aligning their grids and filling missing values.
+
+    Parameters
+    ----------
+    file_full : str
+        Path to the main (FULL) CSV file.
+    file_partial : str
+        Path to the secondary (missing/partial) CSV file.
+    output_file : str or None, optional
+        Output path for the merged CSV. If None, appends "_MERGED" to the full file name.
+    tol : float, optional
+        Tolerance for rounding/quantization of grid points (default=1e-12).
+    """
+
+    # --- Helper function to align FP grid ---
+    def canonicalize(series):
+        vals = np.sort(series.unique())
+        if len(vals) < 2:
+            return series
+        step = np.median(np.diff(vals))
+        base = vals[0]
+        idx = np.round((series - base) / step).astype(int)
+        return base + idx * step
+
+    # --- Load CSVs ---
+    df_full = pd.read_csv(file_full)
+    df_part = pd.read_csv(file_partial)
+
+    # --- Canonicalize coordinates ---
+    for df in [df_full, df_part]:
+        df["L_round"] = canonicalize(df["L_int_m"])
+        df["v_round"] = canonicalize(df["v_0_m_per_s"])
+
+    # --- Merge ---
+    df_full.set_index(["L_round", "v_round"], inplace=True)
+    df_part.set_index(["L_round", "v_round"], inplace=True)
+
+    merged = df_full.copy()
+    merged.update(df_part, overwrite=False)  # Fill missing from partial
+    merged.reset_index(inplace=True)
+
+    # --- Clean up ---
+    merged = (
+        merged.groupby(["L_round", "v_round"], as_index=False)
+        .agg({"width": "mean"})
+        .rename(columns={"L_round": "L_int_m", "v_round": "v_0_m_per_s"})
+        .sort_values(["L_int_m", "v_0_m_per_s"])
+    )
+
+    # --- Save ---
+    if output_file is None:
+        output_file = file_full.replace(".csv", "_MERGED.csv")
+
+    merged.to_csv(output_file, index=False)
+    print(f"[✓] Merged CSV saved as: {output_file}")
+    print(f"    Total grid points: {len(merged)}")
+    return merged
+
+merge_width_csvs(
+    "widths_2D_v0_L_SEM_100_lin_dB_FULL.csv",
+    "widths_2D_v0_L_SEM_100_lin_dB.csv"
+)
+
+# # %% comparison
 # Load data for 0, 10, 30, 100 dB/cm
-df_0db = pd.read_csv("widths_2D_v0_L_SEM_0_lin_dB.csv")
-df_10db = pd.read_csv("widths_2D_v0_L_SEM_10_lin_dB.csv")
-df_30db = pd.read_csv("widths_2D_v0_L_SEM_30_lin_dB.csv")
-df_100db = pd.read_csv("widths_2D_v0_L_SEM_100_lin_dB.csv")
+df_0db = pd.read_csv("widths_2D_v0_L_SEM_0_lin_dB_FULL_MERGED.csv")
+df_10db = pd.read_csv("widths_2D_v0_L_SEM_10_lin_dB_FULL_MERGED.csv")
+df_30db = pd.read_csv("widths_2D_v0_L_SEM_30_lin_dB_FULL_MERGED.csv")
+df_100db = pd.read_csv("widths_2D_v0_L_SEM_100_lin_dB_FULL_MERGED.csv")
 
 # Round to align keys (same as 10 dB plot)
 for df in [df_0db, df_10db, df_30db, df_100db]:
@@ -833,10 +925,10 @@ for df in [df_0db, df_10db, df_30db, df_100db]:
 widths_2D_0db, widths_2D_10db, widths_2D_30db, widths_2D_100db = widths_2D_list
 
 # Compute log ratios
-Z_0db = widths_2D_0db
-Z_10db = widths_2D_10db
-Z_30db = widths_2D_30db 
-Z_100db = widths_2D_100db
+Z_0db = widths_2D_0db/initial_width
+Z_10db = widths_2D_10db/initial_width
+Z_30db = widths_2D_30db/initial_width
+Z_100db = widths_2D_100db/initial_width
 
 # Mask NaNs (same as original)
 Z_0db_masked = np.ma.masked_invalid(Z_0db)
@@ -850,13 +942,15 @@ Wmax = float(np.nanmax([Z_0db_masked.max(), Z_10db_masked.min(), Z_30db_masked.m
 linthresh = 0.05 * max(abs(Wmin), abs(Wmax))
 # Use a symmetric logarithmic normalization for the colorbar
 
-linthresh = 0.02 * max(abs(vmax - initial_width), abs(initial_width - vmin))
+linthresh =  0.05 * max(abs(Wmax - initial_width), abs(initial_width - Wmin))
 nrm = SymLogNorm(linthresh=linthresh, vmin=Wmin, vmax=Wmax, base=10)
-cmap = "RdBu_r"
+# nrm = matplotlib.colors.TwoSlopeNorm(vmin=np.log(Wmin),vcenter = 0, vmax=np.log(Wmax))
+
+cmap = plt.cm.RdBu_r
 
 # Plotting
-# CHANGE: Adjusted figure size slightly to improve spacing and prevent overlap
-fig, axes = plt.subplots(1, 4, figsize=(25, 6), sharey=True)
+# Keep the plot size the same (figsize=(24, 5.5)) but increase wspace for more spacing between plots
+fig, axes = plt.subplots(1, 4, figsize=(24, 5.5), sharey=True)
 
 # Prepare velocity axis in units of c
 v0_axis = v0_vec_rounded / c
@@ -871,13 +965,13 @@ for ax, Z_masked, loss in zip(
         Z_masked,
         origin="lower",
         aspect="auto",
-        extent=[v0_axis.min(), v0_axis.max(), L_int_vec_rounded.min(), L_int_vec_rounded.max()],
+        extent=[v0_axis.min(), v0_axis.max(), L_int_vec_rounded.min()/lambda0, L_int_vec_rounded.max()/lambda0],
         cmap=cmap,
         norm=nrm
     )
     # L_th = L_threshold(initial_width, f"widths_2D_v0_L_SEM_{loss}_lin_dB.csv")
-    ax.axhline(L_th, color="tab:purple", linestyle="--", label=r"$L_\mathrm{the}$")
-    ax.axhline(L0, color="tab:green", linestyle="--", label=r"$L_0$")
+    # ax.axhline(L_th/lambda0, color="tab:purple", linestyle="--", label=r"$L_\mathrm{the}$")
+    ax.axhline(L0/lambda0, color="tab:green", linestyle="--", label=r"$L_0$")
     ax.axvline(vg / c, color="tab:red", linestyle="--", label=r"$v_0 = v_g$")
     ax.set_xlabel("Electron velocity $v_0$ (c)")
     ax.set_title(f"Width map, loss = {loss} dB/cm")
@@ -890,7 +984,7 @@ for ax, Z_masked, loss in zip(
     # Use more significant digits and avoid rounding artifacts
     ax.set_xticklabels([f"{x:.6f}" for x in xticks])
 
-axes[0].set_ylabel("Interaction length $L_{int}$ (m)")
+axes[0].set_ylabel(r"Interaction length $L_{int}$ ($\lambda_0$)")
 
 # CHANGE: Attach colorbar to the last subplot axis instead of using add_axes to avoid tight_layout warning
 cbar = fig.colorbar(im, ax=axes[3], label="log(width / initial_width)", fraction=0.046, pad=0.04)
@@ -952,7 +1046,7 @@ plt.tight_layout()
 plt.savefig("width_vs_L_for_different_losses.svg", format="svg")
 plt.show()
 
-# %% 1D GRAPH: width vs L for different initial widths
+# # # %% 1D GRAPH: width vs L for different initial widths
 L_num = 21
 L_int_vec = np.logspace(np.log10(0.5 * L0), np.log10(400 * L0), L_num)
 sigmaE_factors = [0.5, 0.75, 1]
@@ -1256,13 +1350,21 @@ for i, v0_test in enumerate(tqdm(v0_vec, desc="Scanning v_0", position=0)):
         N, L_int, sigmaE, v0_test, omega0,
         vg, recoil, gamma_dB_per_cm
     )[5])   
+# Save the 1D v0 width data to CSV
+df_v0 = pd.DataFrame({
+    "v0": v0_vec,
+    "width": widths_1D_v0
+})
+df_v0.to_csv("width_vs_v0.csv", index=False)
+# Load the 1D v0 width data from CSV
+df_v0_loaded = pd.read_csv("width_vs_v0.csv")
 plt.figure(figsize=(8, 5))
-plt.plot(v0_vec/c, widths_1D_v0, marker='.', linestyle='-')
-plt.axhline(initial_width, color="gray", linestyle=":", label="Initial width")  
+plt.plot(df_v0_loaded["v0"]/c, df_v0_loaded["width"]/initial_width,  linestyle='-')
+plt.axhline(1, color="gray", linestyle=":", label="Initial width")
 plt.axvline(vg/c, color="red", linestyle="--", label=r"$v_0 = v_g$")
 plt.xlabel("Electron velocity $v_0$ (c)")
-plt.ylabel("Final width (eV)")
-plt.title("Final width vs $v_0$\n($L_{int} = %.3g$ m)" % L_int)
+plt.ylabel("Final width/initial width")
+plt.title(f"Final width vs $v_0$\n($L_{{int}} = {L_int:.3g}$ m = {L_int/lambda0:.2f} $\\lambda_0$)")
 plt.legend()
 plt.tight_layout()
 plt.savefig("width_vs_v0.svg", format="svg")
