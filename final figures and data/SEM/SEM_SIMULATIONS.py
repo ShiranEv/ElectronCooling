@@ -22,7 +22,7 @@ import csv
 from matplotlib.colors import SymLogNorm
 from matplotlib import cm
 from matplotlib.colors import Normalize
-# # %% functions :
+# %% functions :
 # Definitions
 def k(E):
     return np.sqrt(2 * m * E) / hbar
@@ -49,6 +49,8 @@ def compute_FWHM(x, y):
     if len(above) < 2:
         return 0.0
     return x[above[-1]] - x[above[0]]
+def FWHM(sigmaE):
+    return 2*np.sqrt(2 * np.log(2)) * sigmaE
 def Δk(δE_f, E0, δω, omega0, k):
     return k(E0 + δE_f + hbar*(δω)) - k(E0 + δE_f - hbar*omega0)
     return {
@@ -925,10 +927,10 @@ for df in [df_0db, df_10db, df_30db, df_100db]:
 widths_2D_0db, widths_2D_10db, widths_2D_30db, widths_2D_100db = widths_2D_list
 
 # Compute log ratios
-Z_0db = np.log(widths_2D_0db/initial_width)
-Z_10db = np.log(widths_2D_10db/initial_width)
-Z_30db = np.log(widths_2D_30db/initial_width)
-Z_100db = np.log(widths_2D_100db/initial_width)
+Z_0db = np.log10(widths_2D_0db/initial_width)
+Z_10db = np.log10(widths_2D_10db/initial_width)
+Z_30db = np.log10(widths_2D_30db/initial_width)
+Z_100db = np.log10(widths_2D_100db/initial_width)
 
 # Mask NaNs (same as original)
 Z_0db_masked = np.ma.masked_invalid(Z_0db)
@@ -946,7 +948,7 @@ Wmax = float(np.nanmax([Z_0db_masked.max(), Z_10db_masked.min(), Z_30db_masked.m
 nrm = matplotlib.colors.TwoSlopeNorm(vmin=Wmin,vcenter = 0, vmax=Wmax)
 # x = max(abs(Wmax), abs(1/Wmin))
 # nrm = matplotlib.colors.LogNorm(vmin=1/x, vmax=x)
-# cmap = plt.cm.RdBu_r
+cmap = plt.cm.RdBu_r
 
 # Plotting
 # Keep the plot size the same (figsize=(24, 5.5)) but increase wspace for more spacing between plots
@@ -985,15 +987,25 @@ for ax, Z_masked, loss in zip(
     ax.set_xticklabels([f"{x:.6f}" for x in xticks])
 
 axes[0].set_ylabel(r"Interaction length $L_{int}$ ($\lambda_0$)")
+# Set colorbar ticks at edges (vmin, vcenter=0, vmax)
+# Set colorbar ticks with more intermediate values
 
+cbar = fig.colorbar(im, ax=axes[3], label="log(width / initial_width)", fraction=0.046, pad=0.1)
+cbar_ticks = [Wmin, -1, 0, Wmax]
+cbar.set_ticks(cbar_ticks)
+cbar.set_ticklabels([f"{tick:.2f}" for tick in cbar_ticks])
+# cbar_ticks = [-2,-1,0]  # 7 evenly spaced ticks from min to max
+# cbar.set_ticks(cbar_ticks)
+# cbar.set_ticklabels([f"{tick:.2f}" for tick in cbar_ticks])
 # CHANGE: Attach colorbar to the last subplot axis instead of using add_axes to avoid tight_layout warning
-cbar = fig.colorbar(im, ax=axes[3], label="log(width / initial_width)", fraction=0.046, pad=0.04)
+
 
 # CHANGE: Adjusted subplots_adjust to reserve space for colorbar, replacing tight_layout(rect=...)
 fig.subplots_adjust(left=0.05, right=0.90, wspace=0.05)
 plt.show()
 # # Save the last 2D comparison figure as SVG
 # fig.savefig("widths_2D_v0_L_SEM_comparison.svg", format="svg")
+
 
 # %% 1D GRAPH: width vs L for different losses
 L_num = 21
@@ -1245,44 +1257,40 @@ cmap = plt.colormaps["Blues"]
 color_indices = np.linspace(0.2, 0.85, len(sigmaE_factors))
 colors_sigmaE = [cmap(ci) for ci in color_indices[::-1]]
 L0_loss = 1.18 * 4 * (E0 * v0 / (sigmaE_loss_simulation * e * omega0))   # optimal interaction length for loss sigmaE
-
+initial_width_loss = FWHM(sigmaE_loss_simulation)
 # Omit last three L_int points from all plots
 omit_n = 3
 for label, color in reversed(list(zip(loss_labels, colors))):
     df_plot = df_loaded[df_loaded["label"] == label]
     loss_val = df_plot["loss"].iloc[0]
-    legend_label = f"{sigmaE_loss_simulation * 2 * np.sqrt(2 * np.log(2)):.3f} eV ({loss_val:.0f} dB/cm)"
+    legend_label = f"{FWHM(sigmaE_loss_simulation):.3f} eV ({loss_val:.0f} dB/cm)"
     plt.plot(
         df_plot["L_int"][:-omit_n]/lambda0,
-        df_plot["width"][:-omit_n] /sigmaE_loss_simulation * 2 * np.sqrt(2 * np.log(2)),
+        df_plot["width"][:-omit_n] /initial_width_loss,
          linestyle='-', label=legend_label, color=color
     )
 
 for sigmaE_val, label, color in zip(sigmaE_values, sigmaE_labels, colors_sigmaE):
     df_plot = df_sigmaE_loaded[df_sigmaE_loaded["label"] == label]
-    legend_label = f"{sigmaE_val*2*np.sqrt(2*np.log(2)):.3f} eV (0 dB/cm)"
+    legend_label = f"{FWHM(sigmaE_val):.3f} eV (0 dB/cm)"
     plt.plot(
         df_plot["L_int"][:-omit_n]/lambda0,
-        df_plot["width"][:-omit_n] / sigmaE_val * 2 * np.sqrt(2 * np.log(2)),
+        df_plot["width"][:-omit_n] /FWHM(sigmaE_val),
         linestyle='-', label=legend_label, markersize=5, color=color
     )
 
 plt.axvline(L0_loss/lambda0, color="k", linestyle="--", label=r"$L_0$ ")
 plt.axhline(1, color="k", linestyle="--")
 plt.xlabel(r"Interaction length $L_{int}$ ($\lambda_\mathrm{0}$)")
+plt.xlim(L_int_vec[0]/lambda0, L_int_vec[-1-omit_n]/lambda0)
 plt.ylabel("Final width/initial width (eV)")
 plt.yscale("log")
 plt.xscale("log")
-plt.title(r"Width vs $L_{int}$ for different initial widths $\sigma_E$")
 plt.legend()
 plt.tight_layout()
 plt.savefig("width_vs_L_for_different_sigmaE_and_loss.svg", format="svg")
 plt.show()
 plt.figure(figsize=(8, 5))
-
-
-
-
 
 # %% manual fixes:
 N =2**13
