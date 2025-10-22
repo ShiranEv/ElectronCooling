@@ -676,7 +676,7 @@ gamma_dB_per_cm = 0
 vg = v_g_func(omega0, v0)
 recoil = recoil_func(omega0, v0)
 print ("gamma value:", γ(gamma_dB_per_cm, vg))
-δE_f_eV, δω, rho_e, rho_e_initial, rho_f_p, final_width_eV, p1,l_eff = final_state_probability_density_loss(N, L_int, sigmaE, v0, omega0,
+δE_f_eV, δω, rho_e, rho_e_initial, rho_f_p, final_width_eV, p1,l_eff = final_state_probability_density(N, L_int, sigmaE, v0, omega0,
                                                                    vg, recoil, gamma_dB_per_cm)
 
 plt.figure(figsize=(8, 5))
@@ -1046,7 +1046,7 @@ plt.tight_layout()
 plt.savefig("width_vs_L_for_different_losses.svg", format="svg")
 plt.show()
 
-# # # %% 1D GRAPH: width vs L for different initial widths
+# %% 1D GRAPH: width vs L for different initial widths
 L_num = 21
 L_int_vec = np.logspace(np.log10(0.5 * L0), np.log10(400 * L0), L_num)
 sigmaE_factors = [0.5, 0.75, 1]
@@ -1060,7 +1060,7 @@ for sigmaE_val, label in zip(sigmaE_values, sigmaE_labels):
     for L_int_test in tqdm(L_int_vec, desc=f"σE={label}", leave=False):
         width = float(final_state_probability_density(
             N, L_int_test, sigmaE_val, v0, omega0,
-            vg, recoil, gamma_dB_per_cm
+            # vg, recoil, gamma_dB_per_cm
         )[5])
         widths_vs_L.append(width)
         results_sigmaE.append({
@@ -1070,9 +1070,9 @@ for sigmaE_val, label in zip(sigmaE_values, sigmaE_labels):
             "label": label
         })
 
-# Save results to CSV
-df_sigmaE = pd.DataFrame(results_sigmaE)
-df_sigmaE.to_csv("width_vs_L_for_different_sigmaE.csv", index=False)
+# # Save results to CSV
+# df_sigmaE = pd.DataFrame(results_sigmaE)
+# df_sigmaE.to_csv("width_vs_L_for_different_sigmaE.csv", index=False)
 
 # Step 2: Load results from CSV and plot
 df_sigmaE_loaded = pd.read_csv("width_vs_L_for_different_sigmaE.csv")
@@ -1097,7 +1097,7 @@ plt.xscale("log")
 plt.title(r"Width vs $L_{int}$ for different initial widths $\sigma_E$")
 plt.legend()
 plt.tight_layout()
-plt.savefig("width_vs_L_for_different_sigmaE.svg", format="svg")
+# plt.savefig("width_vs_L_for_different_sigmaE.svg", format="svg")
 plt.show()
 
 # %% saturation width :
@@ -1227,6 +1227,7 @@ df_widths_vs_L_loss.to_csv("width_vs_L_for_different_losses_saturation_width.csv
 L_num = 21
 sigmaE = 0.1 * hbar * omega0 / e
 sigmaE_loss_simulation = 0.25 * sigmaE
+
 L_int_vec = np.logspace(np.log10(0.5 * L0), np.log10(400 * L0), L_num)
 loss_values = [0, 10, 30, 100]
 loss_labels = ["0 dB/cm", "10 dB/cm", "30 dB/cm", "100 dB/cm"]
@@ -1240,34 +1241,35 @@ lambda_eff = 2 * np.pi * v0 / omega0
 print(f"Effective wavelength: {lambda_eff*1e9:.3f} nm")
 plt.figure(figsize=(8, 5))
 norm = Normalize(vmin=min(sigmaE_factors), vmax=max(sigmaE_factors))
-cmap = cm.get_cmap("Blues")
+cmap = plt.colormaps["Blues"]
 color_indices = np.linspace(0.2, 0.85, len(sigmaE_factors))
 colors_sigmaE = [cmap(ci) for ci in color_indices[::-1]]
-markers = ['x', '*', '^', 'D']
+L0_loss = 1.18 * 4 * (E0 * v0 / (sigmaE_loss_simulation * e * omega0))   # optimal interaction length for loss sigmaE
 
 # Omit last three L_int points from all plots
 omit_n = 3
-
 for label, color in reversed(list(zip(loss_labels, colors))):
     df_plot = df_loaded[df_loaded["label"] == label]
+    loss_val = df_plot["loss"].iloc[0]
+    legend_label = f"{sigmaE_loss_simulation * 2 * np.sqrt(2 * np.log(2)):.3f} eV ({loss_val:.0f} dB/cm)"
     plt.plot(
-        df_plot["L_int"][:-omit_n]/lambda_eff,
-        df_plot["width"][:-omit_n] / sigmaE_loss_simulation * 2 * np.sqrt(2 * np.log(2)),
-        marker='.', linestyle='-', label=label, color=color
+        df_plot["L_int"][:-omit_n]/lambda0,
+        df_plot["width"][:-omit_n] /sigmaE_loss_simulation * 2 * np.sqrt(2 * np.log(2)),
+         linestyle='-', label=legend_label, color=color
     )
 
 for sigmaE_val, label, color in zip(sigmaE_values, sigmaE_labels, colors_sigmaE):
     df_plot = df_sigmaE_loaded[df_sigmaE_loaded["label"] == label]
-    legend_label = f"{sigmaE_val:.3f} eV"
+    legend_label = f"{sigmaE_val*2*np.sqrt(2*np.log(2)):.3f} eV (0 dB/cm)"
     plt.plot(
-        df_plot["L_int"][:-omit_n]/lambda_eff,
+        df_plot["L_int"][:-omit_n]/lambda0,
         df_plot["width"][:-omit_n] / sigmaE_val * 2 * np.sqrt(2 * np.log(2)),
-        marker='.', linestyle='-', label=legend_label, markersize=5, color=color
+        linestyle='-', label=legend_label, markersize=5, color=color
     )
 
-plt.axvline(L0/lambda_eff, color="k", linestyle="--", label=r"$L_0$ ")
+plt.axvline(L0_loss/lambda0, color="k", linestyle="--", label=r"$L_0$ ")
 plt.axhline(1, color="k", linestyle="--")
-plt.xlabel("Interaction length $L_{int}$ (\lambda_eff)")
+plt.xlabel(r"Interaction length $L_{int}$ ($\lambda_\mathrm{0}$)")
 plt.ylabel("Final width/initial width (eV)")
 plt.yscale("log")
 plt.xscale("log")
@@ -1282,7 +1284,25 @@ plt.figure(figsize=(8, 5))
 
 
 
+# %% manual fixes:
+N =2**13
+v0 = 0.1 * c  # electron velocity
+sigmaE_loss_simulation = 0.25 * 0.1 * hbar * omega0 / e
+E0 = E_rel(v0)
+lambda0 = 500e-9
+omega0  = 2 * np.pi * c / lambda0  # central angular frequency (rad/s)
+L_int  = 0.020995733 # interaction length (m)
+sigmaE = 0.123984198
+L0 = 1.18 * 4 * (E0 * v0 / (sigmaE * e * omega0))   # optimal interaction length
+initial_width = sigmaE * 2 * np.sqrt(2 * np.log(2))
+gamma_dB_per_cm = 10
+vg = v_g_func(omega0, v0)
+recoil = recoil_func(omega0, v0)
+print ("gamma value:", γ(gamma_dB_per_cm, vg))
+δE_f_eV, δω, rho_e, rho_e_initial, rho_f_p, final_width_eV, p1,l_eff = final_state_probability_density(N, L_int, sigmaE, v0, omega0,
+                                                                   vg, recoil, gamma_dB_per_cm)
 
+print(final_width_eV)
 # %% 1D GRAPH: width vs L for different omega0
 # Create L_int_vec and v0_vec in logscale
 # L_int_vec: logarithmically spaced from 0.001*L0 to 15*L0, 30 points
