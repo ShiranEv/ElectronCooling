@@ -1458,7 +1458,7 @@ plt.xlim(v0_vec_loaded[0]/c, v0_vec_loaded[-1]/c)
 # plt.ylabel("Final width/initial width")
 # plt.title(f"Final width vs $v_0$\n($L_{{int}} = {L_int:.3g}$ m = {L_int/lambda0:.2f} $\\lambda_0$)")
 plt.legend()
-# plt.tight_layout()
+plt.tight_layout()
 plt.savefig("width_vs_v0.svg", format="svg")
 plt.show()
 
