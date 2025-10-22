@@ -880,7 +880,7 @@ merge_width_csvs(
     "widths_2D_v0_L_SEM_100_lin_dB.csv"
 )
 
-# # %% comparison
+# %% comparison
 # Load data for 0, 10, 30, 100 dB/cm
 df_0db = pd.read_csv("widths_2D_v0_L_SEM_0_lin_dB_FULL_MERGED.csv")
 df_10db = pd.read_csv("widths_2D_v0_L_SEM_10_lin_dB_FULL_MERGED.csv")
@@ -925,10 +925,10 @@ for df in [df_0db, df_10db, df_30db, df_100db]:
 widths_2D_0db, widths_2D_10db, widths_2D_30db, widths_2D_100db = widths_2D_list
 
 # Compute log ratios
-Z_0db = widths_2D_0db/initial_width
-Z_10db = widths_2D_10db/initial_width
-Z_30db = widths_2D_30db/initial_width
-Z_100db = widths_2D_100db/initial_width
+Z_0db = np.log(widths_2D_0db/initial_width)
+Z_10db = np.log(widths_2D_10db/initial_width)
+Z_30db = np.log(widths_2D_30db/initial_width)
+Z_100db = np.log(widths_2D_100db/initial_width)
 
 # Mask NaNs (same as original)
 Z_0db_masked = np.ma.masked_invalid(Z_0db)
@@ -939,14 +939,14 @@ Z_100db_masked = np.ma.masked_invalid(Z_100db)
 # Find global color scale
 Wmin = float(np.nanmin([Z_0db_masked.min(), Z_10db_masked.min(), Z_30db_masked.min(), Z_100db_masked.min()]))
 Wmax = float(np.nanmax([Z_0db_masked.max(), Z_10db_masked.min(), Z_30db_masked.max(), Z_100db_masked.max()]))
-linthresh = 0.05 * max(abs(Wmin), abs(Wmax))
+
 # Use a symmetric logarithmic normalization for the colorbar
 
-linthresh =  0.05 * max(abs(Wmax - initial_width), abs(initial_width - Wmin))
-nrm = SymLogNorm(linthresh=linthresh, vmin=Wmin, vmax=Wmax, base=10)
-# nrm = matplotlib.colors.TwoSlopeNorm(vmin=np.log(Wmin),vcenter = 0, vmax=np.log(Wmax))
 
-cmap = plt.cm.RdBu_r
+nrm = matplotlib.colors.TwoSlopeNorm(vmin=Wmin,vcenter = 0, vmax=Wmax)
+# x = max(abs(Wmax), abs(1/Wmin))
+# nrm = matplotlib.colors.LogNorm(vmin=1/x, vmax=x)
+# cmap = plt.cm.RdBu_r
 
 # Plotting
 # Keep the plot size the same (figsize=(24, 5.5)) but increase wspace for more spacing between plots
@@ -992,7 +992,7 @@ cbar = fig.colorbar(im, ax=axes[3], label="log(width / initial_width)", fraction
 # CHANGE: Adjusted subplots_adjust to reserve space for colorbar, replacing tight_layout(rect=...)
 fig.subplots_adjust(left=0.05, right=0.90, wspace=0.05)
 plt.show()
-# Save the last 2D comparison figure as SVG
+# # Save the last 2D comparison figure as SVG
 # fig.savefig("widths_2D_v0_L_SEM_comparison.svg", format="svg")
 
 # %% 1D GRAPH: width vs L for different losses
