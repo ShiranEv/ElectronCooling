@@ -973,10 +973,11 @@ for ax, Z_masked, loss in zip(
     )
     # L_th = L_threshold(initial_width, f"widths_2D_v0_L_SEM_{loss}_lin_dB.csv")
     # ax.axhline(L_th/lambda0, color="tab:purple", linestyle="--", label=r"$L_\mathrm{the}$")
-    ax.axhline(L0/lambda0, color="tab:green", linestyle="--", label=r"$L_0$")
+    closest_L0 = L_int_vec_rounded[int(np.argmin(np.abs(L_int_vec_rounded - L0)))]
+    ax.axhline(closest_L0/lambda0, color="tab:green", linestyle="--", label=r"$L_0$")
     ax.axvline(vg / c, color="tab:red", linestyle="--", label=r"$v_0 = v_g$")
-    ax.set_xlabel("Electron velocity $v_0$ (c)")
-    ax.set_title(f"Width map, loss = {loss} dB/cm")
+    # ax.set_xlabel("Electron velocity $v_0$ (c)")
+    # ax.set_title(f"Width map, loss = {loss} dB/cm")
     ax.legend()
     # Show v0 values as plain numbers (no scientific notation)
     ax.ticklabel_format(axis='x', style='plain', useOffset=False)
@@ -986,25 +987,19 @@ for ax, Z_masked, loss in zip(
     # Use more significant digits and avoid rounding artifacts
     ax.set_xticklabels([f"{x:.6f}" for x in xticks])
 
-axes[0].set_ylabel(r"Interaction length $L_{int}$ ($\lambda_0$)")
+# axes[0].set_ylabel(r"Interaction length $L_{int}$ ($\lambda_0$)")
 # Set colorbar ticks at edges (vmin, vcenter=0, vmax)
 # Set colorbar ticks with more intermediate values
 
-cbar = fig.colorbar(im, ax=axes[3], label="log(width / initial_width)", fraction=0.046, pad=0.1)
-cbar_ticks = [Wmin, -1, 0, Wmax]
-cbar.set_ticks(cbar_ticks)
-cbar.set_ticklabels([f"{tick:.2f}" for tick in cbar_ticks])
-# cbar_ticks = [-2,-1,0]  # 7 evenly spaced ticks from min to max
-# cbar.set_ticks(cbar_ticks)
-# cbar.set_ticklabels([f"{tick:.2f}" for tick in cbar_ticks])
-# CHANGE: Attach colorbar to the last subplot axis instead of using add_axes to avoid tight_layout warning
+cbar = fig.colorbar(im, ax=axes[3])
+cbar.set_ticks([-1, 0])
 
 
 # CHANGE: Adjusted subplots_adjust to reserve space for colorbar, replacing tight_layout(rect=...)
 fig.subplots_adjust(left=0.05, right=0.90, wspace=0.05)
 plt.show()
 # # Save the last 2D comparison figure as SVG
-# fig.savefig("widths_2D_v0_L_SEM_comparison.svg", format="svg")
+fig.savefig("widths_2D_v0_L_SEM_comparison.svg", format="svg")
 
 
 # %% 1D GRAPH: width vs L for different losses
@@ -1269,6 +1264,7 @@ for label, color in reversed(list(zip(loss_labels, colors))):
         df_plot["width"][:-omit_n] /initial_width_loss,
          linestyle='-', label=legend_label, color=color
     )
+plt.axvline(L0_loss/lambda0, color=colors[0], linestyle="--")
 
 for sigmaE_val, label, color in zip(sigmaE_values, sigmaE_labels, colors_sigmaE):
     df_plot = df_sigmaE_loaded[df_sigmaE_loaded["label"] == label]
@@ -1278,9 +1274,13 @@ for sigmaE_val, label, color in zip(sigmaE_values, sigmaE_labels, colors_sigmaE)
         df_plot["width"][:-omit_n] /FWHM(sigmaE_val),
         linestyle='-', label=legend_label, markersize=5, color=color
     )
+    L0_loss = 1.18 * 4 * (E0 * v0 / (sigmaE_val * e * omega0))   # optimal interaction length for loss sigmaE
 
-plt.axvline(L0_loss/lambda0, color="k", linestyle="--", label=r"$L_0$ ")
-plt.axhline(1, color="k", linestyle="--")
+    plt.axvline(L0_loss/lambda0, color=color, linestyle="--")
+
+
+plt.axhline(1, color="gray", linestyle=":")
+
 plt.xlabel(r"Interaction length $L_{int}$ ($\lambda_\mathrm{0}$)")
 plt.xlim(L_int_vec[0]/lambda0, L_int_vec[-1-omit_n]/lambda0)
 plt.ylabel("Final width/initial width (eV)")
@@ -1289,6 +1289,67 @@ plt.xscale("log")
 plt.legend()
 plt.tight_layout()
 plt.savefig("width_vs_L_for_different_sigmaE_and_loss.svg", format="svg")
+plt.show()
+plt.figure(figsize=(8, 5))
+
+# %% 1D graph width not normalized vs L loss and sigmaE:
+L_num = 21
+sigmaE = 0.1 * hbar * omega0 / e
+sigmaE_loss_simulation = 0.25 * sigmaE
+
+L_int_vec = np.logspace(np.log10(0.5 * L0), np.log10(400 * L0), L_num)
+loss_values = [0, 10, 30, 100]
+loss_labels = ["0 dB/cm", "10 dB/cm", "30 dB/cm", "100 dB/cm"]
+colors = ["#003366", "tab:orange", "tab:green", "tab:red"]  # dark blue, orange, green, red
+df_sigmaE_loaded = pd.read_csv("width_vs_L_for_different_sigmaE.csv")
+df_loaded = pd.read_csv("width_vs_L_for_different_losses.csv")
+sigmaE_factors = [0.5, 0.75, 1]
+sigmaE_values = [f * sigmaE for f in sigmaE_factors]
+sigmaE_labels = [rf"${f}\,\sigma_E$" for f in sigmaE_factors]
+lambda_eff = 2 * np.pi * v0 / omega0
+print(f"Effective wavelength: {lambda_eff*1e9:.3f} nm")
+plt.figure(figsize=(8, 5))
+norm = Normalize(vmin=min(sigmaE_factors), vmax=max(sigmaE_factors))
+cmap = plt.colormaps["Blues"]
+color_indices = np.linspace(0.2, 0.85, len(sigmaE_factors))
+colors_sigmaE = [cmap(ci) for ci in color_indices[::-1]]
+L0_loss = 1.18 * 4 * (E0 * v0 / (sigmaE_loss_simulation * e * omega0))   # optimal interaction length for loss sigmaE
+initial_width_loss = FWHM(sigmaE_loss_simulation)
+# Omit last three L_int points from all plots
+omit_n = 3
+for label, color in reversed(list(zip(loss_labels, colors))):
+    df_plot = df_loaded[df_loaded["label"] == label]
+    loss_val = df_plot["loss"].iloc[0]
+    legend_label = f"{initial_width_loss:.3f} eV ({loss_val:.0f} dB/cm)"
+    plt.plot(
+        df_plot["L_int"][:-omit_n]/lambda0,
+        df_plot["width"][:-omit_n],
+         linestyle='-', label=legend_label, color=color
+    )
+plt.axvline(L0_loss/lambda0, color=colors[0], linestyle="--")
+plt.axhline(initial_width_loss, color=color, linestyle=":")
+
+for sigmaE_val, label, color in zip(sigmaE_values, sigmaE_labels, colors_sigmaE):
+    df_plot = df_sigmaE_loaded[df_sigmaE_loaded["label"] == label]
+    legend_label = f"{FWHM(sigmaE_val):.3f} eV (0 dB/cm)"
+    plt.plot(
+        df_plot["L_int"][:-omit_n]/lambda0,
+        df_plot["width"][:-omit_n],
+        linestyle='-', label=legend_label, markersize=5, color=color
+    )
+    L0_loss = 1.18 * 4 * (E0 * v0 / (sigmaE_val * e * omega0))   # optimal interaction length for loss sigmaE
+
+    plt.axvline(L0_loss/lambda0, color=color, linestyle="--")
+    plt.axhline(FWHM(sigmaE_val), color=color, linestyle=":")
+
+plt.xlabel(r"Interaction length $L_{int}$ ($\lambda_\mathrm{0}$)")
+plt.xlim(L_int_vec[0]/lambda0, L_int_vec[-1-omit_n]/lambda0)
+plt.ylabel("Final width (eV)")
+plt.yscale("log")
+plt.xscale("log")
+plt.legend()
+plt.tight_layout()
+plt.savefig("width_no_norm_vs_L_for_different_sigmaE_and_loss.svg", format="svg")
 plt.show()
 plt.figure(figsize=(8, 5))
 
@@ -1384,17 +1445,20 @@ df_v0 = pd.DataFrame({
     "width": widths_1D_v0
 })
 df_v0.to_csv("width_vs_v0.csv", index=False)
-# Load the 1D v0 width data from CSV
+# %%  Load the 1D v0 width data from CSV
 df_v0_loaded = pd.read_csv("width_vs_v0.csv")
+v0_vec_loaded = df_v0_loaded["v0"].to_numpy(dtype=float)
 plt.figure(figsize=(8, 5))
-plt.plot(df_v0_loaded["v0"]/c, df_v0_loaded["width"]/initial_width,  linestyle='-')
-plt.axhline(1, color="gray", linestyle=":", label="Initial width")
+plt.plot(v0_vec_loaded/c, df_v0_loaded["width"]/initial_width,  linestyle='-')
+plt.axhline(1, color="gray", linestyle=":")
 plt.axvline(vg/c, color="red", linestyle="--", label=r"$v_0 = v_g$")
-plt.xlabel("Electron velocity $v_0$ (c)")
-plt.ylabel("Final width/initial width")
-plt.title(f"Final width vs $v_0$\n($L_{{int}} = {L_int:.3g}$ m = {L_int/lambda0:.2f} $\\lambda_0$)")
+plt.xlim(v0_vec_loaded[0]/c, v0_vec_loaded[-1]/c)
+# plt.yscale("log")
+# plt.xlabel("Electron velocity $v_0$ (c)")
+# plt.ylabel("Final width/initial width")
+# plt.title(f"Final width vs $v_0$\n($L_{{int}} = {L_int:.3g}$ m = {L_int/lambda0:.2f} $\\lambda_0$)")
 plt.legend()
-plt.tight_layout()
+# plt.tight_layout()
 plt.savefig("width_vs_v0.svg", format="svg")
 plt.show()
 
