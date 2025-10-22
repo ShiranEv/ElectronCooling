@@ -1122,6 +1122,3 @@ cbar.set_ticklabels([])
 plt.tick_params(axis='both', which='both', labelbottom=False, labelleft=False)
 plt.savefig("widths_2D_omega0_v0.svg", format="svg")
 
-
-
-# %%
