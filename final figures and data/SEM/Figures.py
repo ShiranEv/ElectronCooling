@@ -2,7 +2,6 @@
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-import matplotlib.pyplot as plt
 from matplotlib import cm, colors
 from tqdm import tqdm
 from scipy.stats import linregress
@@ -17,8 +16,6 @@ import pandas as pd
 from tabulate import tabulate
 from tqdm import tqdm
 from scipy.interpolate import interp1d
-import csv
-from matplotlib.colors import SymLogNorm
 from matplotlib import cm
 from matplotlib.colors import Normalize
 
@@ -657,8 +654,8 @@ plt.rcParams.update({
 })
 
 plt.figure(figsize=(6, 5))
-plt.plot(v0_c_vec_loaded, width_vec_loaded)
-plt.axhline(initial_width,color='tab:orange', linestyle=":")
+plt.plot(v0_c_vec_loaded, width_vec_loaded/initial_width)
+plt.axhline(1,color='tab:gray', linestyle=":")
 plt.axvline(vg/c, color="red", linestyle="--", label=" ")
 plt.xlim(v0_c_vec_loaded[0], v0_c_vec_loaded[-1])
 plt.xticks(np.linspace(v0_c_vec_loaded[0], v0_c_vec_loaded[-1], 5))
@@ -990,6 +987,8 @@ df_sigmaE_v0.to_csv("widths_2D_sigmaE_v0_shiran.csv")
 
 
 # %%  Load the 2D sigmaE-v0 width data from CSV
+sigmaE_num = 81
+sigmaE_values_2d = np.linspace(0.02 * sigmaE, 1.5 * sigmaE, sigmaE_num)
 df_sigmaE_v0_loaded = pd.read_csv("widths_2D_sigmaE_v0_shiran.csv", index_col=0)
 widths_2D_sigmaE_v0 = df_sigmaE_v0_loaded.to_numpy(dtype=float)
 
@@ -1017,7 +1016,7 @@ plt.imshow(
 plt.ticklabel_format(axis='x', style='plain', useOffset=False)
 plt.xticks([0.09995, 0.1, 0.100025])
 plt.yticks([0.01, 0.2, 0.4, 0.6,0.8])
-
+plt.ylim([0.05, initial_widths_eV.max()])
 plt.axvline(vg/c, color="red", linestyle="--")
 # plt.legend()
 
