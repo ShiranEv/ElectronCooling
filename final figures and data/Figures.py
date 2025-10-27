@@ -2,7 +2,6 @@
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib import cm, colors
 from tqdm import tqdm
 from scipy.stats import linregress
 from scipy.interpolate import interp1d
@@ -628,21 +627,211 @@ def dispersion_plot(omega0, v0,v_g_function,recoil_function, E_function, k_funct
     plt.show()  
 
 # %% SEM setup 
-vg = 0.1 * c
-v0 = vg  # electron velocity
+v0 = 0.9999 * c
+
 E0 = E_rel(v0)
-lambda0 = 500e-9
+lambda0 = 1e-9
 omega0  = 2 * np.pi * c / lambda0  # central angular frequency (rad/s)
-L_int = 0.01
-sigmaE =  0.1 * hbar * omega0 / e
+L_int = 1000
+sigmaE =  0.2
 initial_width = FWHM(sigmaE)
 L0 = 1.18 * 4 * (E0 * v0 / (sigmaE * e * omega0))   # optimal interaction length
 gamma_dB_per_cm = 0
 
 recoil = recoil_func(omega0, v0)
+vg  = v_g_func(omega0, v0)
+sigmaE_eV = sigmaE 
+
+grid_factor = 4
+sigmaE = sigmaE_eV * e  # eV → J
+
+energy_span = grid_factor * sigmaE  # J
+omega_span = grid_factor * sigmaE / hbar  # rad/s
+
+N = 2**12
+δω = np.linspace(-omega_span, omega_span, N)
+dω = δω[1] - δω[0]
+δE_f = np.linspace(-energy_span, energy_span, N)  # J
+dE = δE_f[1] - δE_f[0]
+
+energy_span = max(abs(δE_f))
+nyquist = nyquist_rate(v0, L_int, energy_span)
+if dω > nyquist:
+    print(f"Warning: δω = {dω:.3e} > Nyquist rate = {nyquist:.3e} (aliasing may occur)")
+
+δω_grid, δE_f_grid = np.meshgrid(δω, δE_f, indexing="ij")
+rho_i_2d = np.exp(-((δE_f_grid + hbar * δω_grid) ** 2) / (2 * sigmaE**2)) / np.sqrt(2 * np.pi * sigmaE**2)
+i0 = np.argmin(np.abs(δω))
+K = np.zeros_like(δω)
+K[i0] = 1.0 / dω
+rho_i_e = np.sum(rho_i_2d * K[:, None], axis=0) * dω  # equals rho_i_2d[i0, :]
+rho_i_e /= np.sum(rho_i_e) * dE
+
+E0 = E_rel(v0)
+k0 = k_rel(E0)
+gamma = np.sqrt(1/(1 - (v0/c)**2))
+k0_m_hw = k_rel(E0 - hbar * omega0)
+q0 = k0 - k0_m_hw  # phase matching
+
+Delta_PM = (
+    k_rel(E0 + δE_f_grid + hbar * δω_grid)
+    - k_rel(E0 + δE_f_grid - hbar * omega0)
+    - (q0 + (δω_grid / vg) + 0.5 * recoil * δω_grid**2)
+)
+
+plt.imshow(np.sinc(Delta_PM * L_int / (2 * np.pi)), extent=[δE_f[0]/e, δE_f[-1]/e, δω[0]/(2*np.pi*1e12), δω[-1]/(2*np.pi*1e12)], aspect='auto')
+plt.xlabel('Final Electron Energy Deviation δE_f (eV)')
+plt.ylabel('Photon Frequency Deviation δω (THz)')
+plt.show()
+
+
+# %% FAST setup 
+v0 = 0.9999 * c
+
+E0 = E_rel(v0)
+lambda0 = 10e-10
+omega0  = 2 * np.pi * c / lambda0  # central angular frequency (rad/s)
+L_int = 1000
+sigmaE =  0.2
+initial_width = FWHM(sigmaE)
+L0 = 1.18 * 4 * (E0 * v0 / (sigmaE * e * omega0))   # optimal interaction length
+
+print(f"E0 = {(E0/e )/ 10**9:.3e} GeV")
+
+L0 = 1.18*4*E0*v0/(sigmaE_eV*e*omega0)
+vg = v_g_func(omega0, v0)
+recoil = recoil_func(omega0, v0)
+
+
+grid_factor = 4
+sigmaE = sigmaE_eV * e  # eV → J
+
+energy_span = 10*grid_factor * sigmaE  # J
+omega_span = grid_factor * sigmaE / hbar  # rad/s
+
+N = 2**11
+δω = np.linspace(-omega_span, omega_span, N)
+dω = δω[1] - δω[0]
+δE_f = np.linspace(-energy_span, energy_span, N*10)  # J
+dE = δE_f[1] - δE_f[0]
+
+energy_span = max(abs(δE_f))
+nyquist = nyquist_rate(v0, L_int, energy_span)
+if dω > nyquist:
+    print(f"Warning: δω = {dω:.3e} > Nyquist rate = {nyquist:.3e} (aliasing may occur)")
+
+δω_grid, δE_f_grid = np.meshgrid(δω, δE_f, indexing="ij")
+rho_i_2d = np.exp(-((δE_f_grid + hbar * δω_grid) ** 2) / (2 * sigmaE**2)) / np.sqrt(2 * np.pi * sigmaE**2)
+i0 = np.argmin(np.abs(δω))
+K = np.zeros_like(δω)
+K[i0] = 1.0 / dω
+rho_i_e = np.sum(rho_i_2d * K[:, None], axis=0) * dω  # equals rho_i_2d[i0, :]
+rho_i_e /= np.sum(rho_i_e) * dE
+
+E0 = E_rel(v0)
+k0 = k_rel(E0)
+gamma = np.sqrt(1/(1 - (v0/c)**2))
+k0_m_hw = k_rel(E0 - hbar * omega0)
+q0 = k0 - k0_m_hw  # phase matching
+
+Delta_PM = (
+    k_rel(E0 + δE_f_grid + hbar * δω_grid)
+    - k_rel(E0 + δE_f_grid - hbar * omega0)
+    - (q0 + (δω_grid / vg) + 0.5 * recoil * δω_grid**2)
+)
+plt.imshow(Delta_PM, extent=[δE_f[0]/e, δE_f[-1]/e, δω[0]/(2*np.pi*1e12), δω[-1]/(2*np.pi*1e12)], aspect='auto')
+plt.colorbar(label='Δ_PM (1/m)')
+plt.xlabel('Final Electron Energy Deviation δE_f (eV)')
+plt.ylabel('Photon Frequency Deviation δω (THz)')
+plt.show()
+
+plt.imshow(np.sinc(Delta_PM * L_int / (2 * np.pi)), extent=[δE_f[0]/e, δE_f[-1]/e, δω[0]/(2*np.pi*1e12), δω[-1]/(2*np.pi*1e12)], aspect='auto')
+plt.colorbar(label='sinc(Δ_PM * L_int / 2π)')
+plt.xlabel('Final Electron Energy Deviation δE_f (eV)')
+plt.ylabel('Photon Frequency Deviation δω (THz)')
+plt.show()
+
+kernel = (hbar * k_rel(E0 + δE_f_grid + hbar * δω_grid) / m) * np.sinc(Delta_PM * L_int / (2 * np.pi))
+
+factor = e**2 * hbar * L_int**2 / (2 * eps0 * (δω_grid + omega0))
+U_factor = 1 
+rho_f = factor * U_factor * (rho_i_2d * kernel**2)
+
+# Electron marginal over ω (normalized over J)
+rho_f_e = np.sum(rho_f, axis=0) * dω
+rho_f_e /= np.sum(rho_f_e * dE) if np.sum(rho_f_e * dE) != 0 else 1.0
+
+p1 = np.sum(rho_f_e * dE)
+
+# Photon marginal over δE_f (normalized over rad/s)
+rho_f_p = np.sum(rho_f, axis=1) * dE
+rho_f_p /= np.sum(rho_f_p * dω) if np.sum(rho_f_p * dω) != 0 else 1.0
+
+# Convert grids and distributions to eV
+δE_f_eV = δE_f / e
+δω_eV = hbar * δω / e
+rho_f_e_eV = rho_f_e / e
+rho_i_e_eV = rho_i_e / e
+
+final_width_eV = compute_FWHM(δE_f_eV, rho_f_e_eV)
+
+dispersion_plot(
+    omega0,
+    v0,
+    v_g_func,
+    recoil_func,
+    E_rel,
+    k_rel
+)
+plt.figure(figsize=(8, 5))
+plt.plot(δE_f_eV, rho_f_e_eV, ".", label="Final electron distribution ($\\rho_f$)")
+plt.axhline(np.max(rho_f_e_eV) / 2, color='tab:gray', linestyle=":")
+plt.xlim(-4,4)
+plt.plot(δE_f_eV, rho_i_e_eV, ".", label="Initial electron distribution ($\\rho_i$)")
+plt.xlabel("Energy deviation $\\delta E_f$ (eV)")
+plt.ylabel("Probability density")
+plt.title(f"Electron Energy Distributions\nInitial width: {initial_width:.3g} eV, Final width: {final_width_eV:.3g} eV")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# Plot photon distribution
+plt.figure(figsize=(8, 5))
+plt.plot(δω, rho_f_p, label="Photon distribution")
+plt.xlabel("Frequency deviation $\\delta\\omega$ (rad/s)")
+plt.ylabel("Probability density")
+plt.title(f"Photon Frequency Distribution\nInitial width: {initial_width:.3g} eV, Final width: {final_width_eV:.3g} eV")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+# %% FAST 1D graph width vs v0 :
+v0_num = 31
+v0_vec = np.unique(
+    np.concatenate([
+        np.linspace(0.9999999, 1.0000001, v0_num) * v0,          # ±1%
+        np.linspace(0.99999999, 1.00000001, v0_num // 2) * v0,    # ±0.1%
+        [v0],                                           # exact center
+    ])
+)
+widths_1D_v0 = np.zeros(len(v0_vec))        
+N = 2**12
+for i, v0_test in enumerate(tqdm(v0_vec, desc="Scanning v_0", position=0)):
+    widths_1D_v0[i] = float(final_state_probability_density(
+        N, L_int, sigmaE, v0_test, omega0,
+        vg, recoil, gamma_dB_per_cm
+    )[5])   
+# Save the 1D v0 width data to CSV
+df_v0 = pd.DataFrame({
+    "v0": v0_vec,
+    "width": widths_1D_v0
+})
+df_v0.to_csv("FAST\width_vs_v0.csv", index=False)
 
 # %%  1D graph width vs v0 :
-df_v0_loaded = pd.read_csv("width_vs_v0.csv")
+
+df_v0_loaded = pd.read_csv("FAST\width_vs_v0.csv")
 v0_c_vec_loaded = df_v0_loaded["v0"].to_numpy(dtype=float)/c
 width_vec_loaded = df_v0_loaded["width"].to_numpy(dtype=float)
 
@@ -661,14 +850,12 @@ plt.xlim(v0_c_vec_loaded[0], v0_c_vec_loaded[-1])
 plt.xticks(np.linspace(v0_c_vec_loaded[0], v0_c_vec_loaded[-1], 5))
 plt.yticks([0, 1, 2, 3])
 plt.tight_layout()
-
+# plt.yscale("log")
 
 # plt.legend(frameon=False)
 
-
-plt.tick_params(axis='both', which='both', labelbottom=False, labelleft=False)
-plt.yscale("log")
-plt.savefig("width_vs_v0_log.svg", format="svg")
+# plt.tick_params(axis='both', which='both', labelbottom=False, labelleft=False)
+# plt.savefig("width_vs_v0_log.svg", format="svg")
 
 
 # %% 1D graph width vs L loss and sigmaE:

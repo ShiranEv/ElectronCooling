@@ -674,30 +674,108 @@ def L_threshold(initial_width, csv_path):
     return L_thresh
 # %%************************************************************FAST setup************************************************************%% # 
 # %% FAST setup 
-N = 2**10
+def FWHM(sigmaE):
+    return 2*np.sqrt(2 * np.log(2)) * sigmaE
+
 v0 = 0.9999*c
 E0 = E_rel(v0)  # eV to J
-sigmaE = 10e1 # eV
+
 omega0 = 2 * np.pi * c / λ(700)  # central angular frequency (rad/s)
-L_int = 5e1 # m
-initial_width = sigmaE * 2 * np.sqrt(2 * np.log(2)) 
-gamma_dB_per_cm = 0.01
+L_int = 20 # m
+
+# vg = 0.1 * c
+# v0 = vg  # electron velocity
+# E0 = E_rel(v0)
+# lambda0 = 500e-9
+# omega0  = 2 * np.pi * c / lambda0  # central angular frequency (rad/s)
+# L_int = 0.01
+
+sigmaE_eV = 0.2 # eV
+initial_width = FWHM(sigmaE_eV)
+gamma_dB_per_cm = 0
 print(f"E0 = {E0/e:.3e} eV = {E0/1.60218e-10:.3e} GeV")
 
-L0 = 1.18*4*E0*v0/(sigmaE*e*omega0)
+L0 = 1.18*4*E0*v0/(sigmaE_eV*e*omega0)
 vg = v_g_func(omega0, v0)
 recoil = recoil_func(omega0, v0)
 
-δE_f_eV, δω, rho_e, rho_e_initial, rho_f_p, final_width_eV, p1,L_eff = final_state_probability_density_loss(N,
-                                                                                                            L_int,
-                                                                                                            sigmaE,
-                                                                                                            v0, omega0,
-                                                                                                            vg,
-                                                                                                            recoil,
-                                                                                                            gamma_dB_per_cm)
+# δE_f_eV, δω, rho_e, rho_e_initial, rho_f_p, final_width_eV, p1,L_eff = final_state_probability_density(N,
+                                                                                                            # L_int,
+                                                                                                            # sigmaE,
+                                                                                                            # v0, omega0,
+                                                                                                            # vg,
+                                                                                                            # recoil,
+                                                                                                            # gamma_dB_per_cm)
 
+grid_factor = 4
+sigmaE = sigmaE_eV * e  # eV → J
 
-from IPython.display import clear_output, display
+energy_span = 10 * grid_factor * sigmaE  # J
+omega_span = sigmaE / hbar  # rad/s
+
+N = 2**12
+δω = np.linspace(-omega_span, omega_span, N)
+dω = δω[1] - δω[0]
+δE_f = np.linspace(-energy_span, energy_span, N)  # J
+dE = δE_f[1] - δE_f[0]
+
+energy_span = max(abs(δE_f))
+nyquist = nyquist_rate(v0, L_int, energy_span)
+if dω > nyquist:
+    print(f"Warning: δω = {dω:.3e} > Nyquist rate = {nyquist:.3e} (aliasing may occur)")
+
+δω_grid, δE_f_grid = np.meshgrid(δω, δE_f, indexing="ij")
+rho_i_2d = np.exp(-((δE_f_grid + hbar * δω_grid) ** 2) / (2 * sigmaE**2)) / np.sqrt(2 * np.pi * sigmaE**2)
+i0 = np.argmin(np.abs(δω))
+K = np.zeros_like(δω)
+K[i0] = 1.0 / dω
+rho_i_e = np.sum(rho_i_2d * K[:, None], axis=0) * dω  # equals rho_i_2d[i0, :]
+rho_i_e /= np.sum(rho_i_e) * dE
+
+E0 = E_rel(v0)
+k0 = k_rel(E0)
+gamma = np.sqrt(1/(1 - (v0/c)**2))
+k0_m_hw = k_rel(E0 - hbar * omega0)
+q0 = k0 - k0_m_hw  # phase matching
+
+Delta_PM = (
+    k_rel(E0 + δE_f_grid + hbar * δω_grid)
+    - k_rel(E0 + δE_f_grid - hbar * omega0)
+    - (q0 + (δω_grid / vg) + 0.5 * recoil * δω_grid**2)
+)
+
+plt.imshow(np.sinc(Delta_PM * L_int / (2 * np.pi)), extent=[δE_f[0]/e, δE_f[-1]/e, δω[0]/(2*np.pi*1e12), δω[-1]/(2*np.pi*1e12)], aspect='auto')
+plt.xlabel('Final Electron Energy Deviation δE_f (eV)')
+plt.ylabel('Photon Frequency Deviation δω (THz)')
+plt.show()
+
+#%%
+# plt.plot(δE_f, np.sum(np.sinc(Delta_PM * L_int / (2 * np.pi)), axis=0) * dω, '.')
+
+# plt.plot(δω, np.sum(np.sinc(Delta_PM * L_int / (2 * np.pi)), axis=1) * dE, '.')
+
+kernel = (hbar * k_rel(E0 + δE_f_grid + hbar * δω_grid) / m) * np.sinc(Delta_PM * L_int / (2 * np.pi))
+
+factor = e**2 * hbar * L_int**2 / (2 * eps0 * (δω_grid + omega0))
+U_factor = 1 
+rho_f = factor * U_factor * (rho_i_2d * kernel**2)
+
+# Electron marginal over ω (normalized over J)
+rho_f_e = np.sum(rho_f, axis=0) * dω
+rho_f_e /= np.sum(rho_f_e * dE) if np.sum(rho_f_e * dE) != 0 else 1.0
+final_width_eV = compute_FWHM(δE_f, rho_f_e) / e
+
+p1 = np.sum(rho_f_e * dE)
+
+# Photon marginal over δE_f (normalized over rad/s)
+rho_f_p = np.sum(rho_f, axis=1) * dE
+rho_f_p /= np.sum(rho_f_p * dω) if np.sum(rho_f_p * dω) != 0 else 1.0
+
+# Convert grids and distributions to eV
+δE_f_eV = δE_f / e
+δω_eV = hbar * δω / e
+rho_f_e_eV = rho_f_e / e
+rho_i_e_eV = rho_i_e / e
 
 dispersion_plot(
     omega0,
@@ -708,8 +786,8 @@ dispersion_plot(
     k_rel
 )
 plt.figure(figsize=(8, 5))
-plt.plot(δE_f_eV, rho_e, label="Final electron distribution ($\\rho_f$)")
-plt.plot(δE_f_eV, rho_e_initial, label="Initial electron distribution ($\\rho_i$)", linestyle="--")
+plt.plot(δE_f_eV, rho_f_e_eV, label="Final electron distribution ($\\rho_f$)")
+plt.plot(δE_f_eV, rho_i_e_eV, label="Initial electron distribution ($\\rho_i$)", linestyle="--")
 plt.xlabel("Energy deviation $\\delta E_f$ (eV)")
 plt.ylabel("Probability density")
 plt.title(f"Electron Energy Distributions\nInitial width: {initial_width:.3g} eV, Final width: {final_width_eV:.3g} eV")
