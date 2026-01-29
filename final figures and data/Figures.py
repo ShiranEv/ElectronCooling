@@ -737,7 +737,7 @@ plt.show()
 # %% SEM setup
 v0 = 0.1 * c
 E0 = E_rel(v0)
-lambda0 = 500e-8
+lambda0 = 300e-9
 omega0 = 2 * np.pi * c / lambda0  # central angular frequency (rad/s)
 L_int = 0.01
 sigmaE_eV = 0.2
@@ -765,22 +765,7 @@ if dω > nyquist:
     print(f"Warning: δω = {dω:.3e} > Nyquist rate = {nyquist:.3e} (aliasing may occur)")
 
 δω_grid, δE_f_grid = np.meshgrid(δω, δE_f, indexing="ij")
-rho_i_2d = np.exp(-((δE_f_grid + hbar * δω_grid) ** 2) / (2 * sigmaE**2)) / np.sqrt(2 * np.pi * sigmaE**2)
-
-plt.imshow(
-    rho_i_2d, extent=[δE_f[0] / e, δE_f[-1] / e, δω[0] / (2 * np.pi * 1e12), δω[-1] / (2 * np.pi * 1e12)], aspect="auto"
-)
-plt.colorbar(label="sinc(Δ_PM * L_int / 2π)")
-plt.xlabel("Final Electron Energy Deviation δE_f (eV)")
-plt.ylabel("Photon Frequency Deviation δω (THz)")
-plt.show()
-
-
-i0 = np.argmin(np.abs(δω))
-K = np.zeros_like(δω)
-K[i0] = 1.0 / dω
-rho_i_e = np.sum(rho_i_2d * K[:, None], axis=0) * dω  # equals rho_i_2d[i0, :]
-rho_i_e /= np.sum(rho_i_e) * dE
+δE_f_grid = δE_f_grid - hbar * δω_grid
 
 E0 = E_rel(v0)
 k0 = k_rel(E0)
@@ -794,69 +779,81 @@ Delta_PM = (
     - (q0 + (δω_grid / vg) + 0.5 * recoil * δω_grid**2)
 )
 plt.imshow(
-    Delta_PM, extent=[δE_f[0] / e, δE_f[-1] / e, δω[0] / (2 * np.pi * 1e12), δω[-1] / (2 * np.pi * 1e12)], aspect="auto"
+    np.abs(Delta_PM), extent=[δE_f[0] / e, δE_f[-1] / e, δω[0] / (2 * np.pi * 1e12), δω[-1] / (2 * np.pi * 1e12)], aspect="auto"
 )
 plt.colorbar(label="Δ_PM (1/m)")
 plt.xlabel("Final Electron Energy Deviation δE_f (eV)")
 plt.ylabel("Photon Frequency Deviation δω (THz)")
 plt.show()
 
+kernel = np.sinc(Delta_PM * L_int / (2 * np.pi))**2
+plt.plot(δE_f, np.abs(Delta_PM[int(len(δω)/2), :]))
+plt.plot(δω*hbar, np.abs(Delta_PM[:, int(len(δE_f)/2)]))
+plt.plot(δE_f, np.abs(Delta_PM[0, :]))
+plt.plot(δω*hbar, np.abs(Delta_PM[:, 0]))
+plt.xlabel("Final Electron Energy Deviation δE_f (eV)")
+plt.ylabel("|Δ_PM| (1/m)")
+plt.show()
+
 plt.imshow(
-    np.sinc(Delta_PM * L_int / (2 * np.pi)),
+    kernel,
     extent=[δE_f[0] / e, δE_f[-1] / e, δω[0] / (2 * np.pi * 1e12), δω[-1] / (2 * np.pi * 1e12)],
     aspect="auto",
 )
 plt.colorbar(label="sinc(Δ_PM * L_int / 2π)")
-plt.xlabel("Final Electron Energy Deviation δE_f (eV)")
+plt.xlabel("initial Electron Energy Deviation δE_i (eV)")
 plt.ylabel("Photon Frequency Deviation δω (THz)")
 plt.show()
 
-Delta_PM_app = -(0*δω_grid + omega0) * δE_f_grid / (4 * E0 * v0)
+# kernel = (hbar * k_rel(E0 + δE_f_grid + hbar * δω_grid) / m) * np.sinc(Delta_PM * L_int / (2 * np.pi))
+# factor = e**2 * hbar * L_int**2 / (2 * eps0 * (δω_grid + omega0))
+# U_factor = 1
+# rho_f = factor * U_factor * (rho_i_2d * kernel**2)
+
+
+# plt.imshow(
+#     rho_f, extent=[δE_f[0] / e, δE_f[-1] / e, δω[0] / (2 * np.pi * 1e12), δω[-1] / (2 * np.pi * 1e12)], aspect="auto"
+# )
+# plt.colorbar(label="rho_f")
+# plt.xlabel("Final Electron Energy Deviation δE_f (eV)")
+# plt.ylabel("Photon Frequency Deviation δω (THz)")
+# plt.show()
+#%%
+Delta_PM_approx = -(0*δω_grid + omega0) * δE_f_grid / (4 * E0 * v0)
 plt.imshow(
-    Delta_PM_app,
+    Delta_PM_approx,
     extent=[δE_f[0] / e, δE_f[-1] / e, δω[0] / (2 * np.pi * 1e12), δω[-1] / (2 * np.pi * 1e12)],
     aspect="auto",
 )
-plt.colorbar(label="Δ_PM (1/m)")
+plt.colorbar(label="Δ_PM_approx (1/m)")
 plt.xlabel("Final Electron Energy Deviation δE_f (eV)")
 plt.ylabel("Photon Frequency Deviation δω (THz)")
 plt.show()
 
-kernel_app = (hbar * k_rel(E0 + δE_f_grid + hbar * δω_grid) / m) * np.sinc(Delta_PM_app * L_int / (2 * np.pi))
+kernel_approx = (hbar * k_rel(E0 + δE_f_grid + hbar * δω_grid) / m) * np.sinc(Delta_PM_approx * L_int / (2 * np.pi))
 factor = e**2 * hbar * L_int**2 / (2 * eps0 * (δω_grid + omega0))
 
 plt.imshow(
-    factor * (kernel_app**2),
+    factor * (kernel_approx**2),
     extent=[δE_f[0] / e, δE_f[-1] / e, δω[0] / (2 * np.pi * 1e12), δω[-1] / (2 * np.pi * 1e12)],
     aspect="auto",
 )
-plt.colorbar(label="sinc(Δ_PM * L_int / 2π)")
+plt.colorbar(label="sinc(Δ_PM * L_int / 2π) approx")
 plt.xlabel("Final Electron Energy Deviation δE_f (eV)")
 plt.ylabel("Photon Frequency Deviation δω (THz)")
 plt.show()
 
 plt.imshow(
-    factor * (rho_i_2d * kernel_app**2),
+    factor * (rho_i_2d * kernel_approx**2),
     extent=[δE_f[0] / e, δE_f[-1] / e, δω[0] / (2 * np.pi * 1e12), δω[-1] / (2 * np.pi * 1e12)],
     aspect="auto",
 )
-plt.colorbar(label="sinc(Δ_PM * L_int / 2π)")
+plt.colorbar(label="rho_f approx")
 plt.xlabel("Final Electron Energy Deviation δE_f (eV)")
 plt.ylabel("Photon Frequency Deviation δω (THz)")
 plt.show()
 
 kernel = (hbar * k_rel(E0 + δE_f_grid + hbar * δω_grid) / m) * np.sinc(Delta_PM * L_int / (2 * np.pi))
-
-
-plt.imshow(
-    kernel**2,
-    extent=[δE_f[0] / e, δE_f[-1] / e, δω[0] / (2 * np.pi * 1e12), δω[-1] / (2 * np.pi * 1e12)],
-    aspect="auto",
-)
-plt.colorbar(label="sinc(Δ_PM * L_int / 2π)")
-plt.xlabel("Final Electron Energy Deviation δE_f (eV)")
-plt.ylabel("Photon Frequency Deviation δω (THz)")
-plt.show()
 
 
 factor = e**2 * hbar * L_int**2 / (2 * eps0 * (δω_grid + omega0))
@@ -867,7 +864,7 @@ rho_f = factor * U_factor * (rho_i_2d * kernel**2)
 plt.imshow(
     rho_f, extent=[δE_f[0] / e, δE_f[-1] / e, δω[0] / (2 * np.pi * 1e12), δω[-1] / (2 * np.pi * 1e12)], aspect="auto"
 )
-plt.colorbar(label="sinc(Δ_PM * L_int / 2π)")
+plt.colorbar(label="rho_f")
 plt.xlabel("Final Electron Energy Deviation δE_f (eV)")
 plt.ylabel("Photon Frequency Deviation δω (THz)")
 plt.show()
@@ -878,7 +875,7 @@ plt.imshow(
     extent=[δE_f[0] / e, δE_f[-1] / e, δω[0] / (2 * np.pi * 1e12), δω[-1] / (2 * np.pi * 1e12)],
     aspect="auto",
 )
-plt.colorbar(label="sinc(Δ_PM * L_int / 2π)")
+plt.colorbar(label="Gaussian envelope")
 plt.xlabel("Final Electron Energy Deviation δE_f (eV)")
 plt.ylabel("Photon Frequency Deviation δω (THz)")
 plt.show()
@@ -1540,3 +1537,77 @@ plt.tight_layout()
 cbar.set_ticklabels([])
 plt.tick_params(axis="both", which="both", labelbottom=False, labelleft=False)
 plt.savefig("widths_2D_omega0_v0.svg", format="svg")
+
+
+
+
+
+#%%
+import numpy as np
+import matplotlib.pyplot as plt
+
+def system(t, x, r):
+    dxdt = r * x * (1 - x / 8.0) - x**2 / (x**2 + 1.0)
+    drdt = (1 - x**2 / 6.0) / 100.0
+    return dxdt, drdt
+
+def rk4_system(f, t_span, y0, h):
+    t0, t1 = t_span
+    n_steps = int((t1 - t0) / h)
+    t_values = np.linspace(t0, t1, n_steps + 1)
+    x_values = np.zeros_like(t_values)
+    r_values = np.zeros_like(t_values)
+    x_values[0], r_values[0] = y0
+
+    for i in range(n_steps):
+        t = t_values[i]
+        x = x_values[i]
+        r = r_values[i]
+
+        k1x, k1r = f(t, x, r)
+        k2x, k2r = f(t + 0.5*h, x + 0.5*h*k1x, r + 0.5*h*k1r)
+        k3x, k3r = f(t + 0.5*h, x + 0.5*h*k2x, r + 0.5*h*k2r)
+        k4x, k4r = f(t + h, x + h*k3x, r + h*k3r)
+
+        x_values[i+1] = x + (h/6.0)*(k1x + 2*k2x + 2*k3x + k4x)
+        r_values[i+1] = r + (h/6.0)*(k1r + 2*k2r + 2*k3r + k4r)
+
+    return t_values, x_values, r_values
+
+# Initial conditions and integration interval
+x0, r0 = 0.01, 0.0
+t_span = (0.0, 350.0)
+h = 0.01
+
+t, x, r = rk4_system(system, t_span, (x0, r0), h)
+# Find time between max points in x(t)
+max_indices = []
+for i in range(1, len(x) - 1):
+    if x[i] > x[i-1] and x[i] > x[i+1]:
+        max_indices.append(i)
+
+if len(max_indices) >= 2:
+    time_differences = np.diff(t[max_indices])
+    print(f"Average time between maxima: {np.mean(time_differences):.3f}")
+
+# 1) x(t) and r(t) vs t
+plt.figure()
+plt.plot(t, x, '.', label="Population x(t)")
+plt.plot(t, r, label="Growth rate r(t)")
+plt.xlabel("t")
+plt.ylabel("x(t), r(t)")
+plt.legend()
+plt.title("x(t) and r(t) vs. time")
+plt.tight_layout()
+plt.show()
+
+# 2) Phase plot: x(t) as a function of r(t)
+plt.figure()
+plt.plot(r, x)
+plt.xlabel("r(t)")
+plt.ylabel("x(t)")
+plt.title("Phase space: x(t) vs. r(t)")
+plt.tight_layout()
+plt.show()
+
+# %%
